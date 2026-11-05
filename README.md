@@ -10,15 +10,15 @@
 </p>
 
 <p align="center">
-  <img src="docs/tokyo-night.jpg" alt="Pharos on the Tokyo Night theme">
+  <img src="docs/gruvbox.jpg" alt="Pharos on the Gruvbox theme">
 </p>
 
 <p align="center">
+  <img src="docs/tokyo-night.jpg" width="49%" alt="Pharos on the Tokyo Night theme">
   <img src="docs/catppuccin-latte.jpg" width="49%" alt="Pharos on the Catppuccin Latte theme">
-  <img src="docs/gruvbox.jpg" width="49%" alt="Pharos on the Gruvbox theme">
 </p>
 
-<p align="center"><sub>Tokyo Night, Catppuccin Latte and Gruvbox. Pharos follows whichever theme you pick.</sub></p>
+<p align="center"><sub>Gruvbox, Tokyo Night and Catppuccin Latte. Pharos follows whichever theme you pick.</sub></p>
 
 ## Install
 
@@ -48,7 +48,7 @@ Click the pencil to rename or delete reminders, add new ones with
 **+ New reminder**, and choose whether Pharos starts at login.
 
 <p align="center">
-  <img src="docs/editing.png" width="420" alt="Pharos edit view">
+  <img src="docs/editing.png" width="420" alt="Pharos edit view on the Vantablack theme">
 </p>
 
 ### Keyboard
