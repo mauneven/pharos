@@ -1,35 +1,17 @@
-<img src="docs/icon.png" width="64" alt="">
-
-# Pharos
-
-Gentle break reminders, built for [Omarchy](https://omarchy.org).
-
 <p align="center">
-  <img src="docs/pharos.png" width="390" alt="Pharos in the Vantablack theme, in Spanish">
-  <img src="docs/editing.png" width="390" alt="Pharos's edit view in the Tokyo Night theme">
+  <img src="docs/icon.png" width="96" alt="Pharos icon">
 </p>
 
-Pharos does one thing: **every N minutes it sends you a notification, then the
-clock starts over.** Set *Drink water* to 20 minutes and you're reminded every
-20 minutes, all day.
+<h1 align="center">Pharos</h1>
 
-- **One window.** Each reminder has a checkbox, a slider from 1 to 120 minutes
-  and a live countdown. The switch at the top pauses everything.
-- **The pencil is the settings.** Tap it to rename or delete reminders, add new
-  ones, and choose whether Pharos starts at login.
-- **Native to Omarchy.**
-  - It reads the current theme's `colors.toml` and `shell.toml` (control states,
-    font size, spacing) plus Hyprland's corner rounding and the Omarchy font,
-    and restyles live when you switch themes.
-  - Notifications go through `omarchy notification send`, so they look like
-    every other Omarchy notification, with a **Snooze 5 min** button.
-- **Every Omarchy language.** All 50 languages, following
-  `~/.config/omarchy/language` live, with right-to-left layout for Arabic,
-  Persian, Hebrew and Urdu.
-- **A tray icon in the Omarchy bar.** Left click opens Pharos; right click has
-  Open, Turn on / Turn off and Quit.
-- **Small and quiet.** Rust and GTK4, one process. If the laptop sleeps, the
-  clocks restart quietly instead of firing a backlog.
+<p align="center">
+  Break reminders for <a href="https://omarchy.org">Omarchy</a>.<br>
+  Every N minutes, a notification. Then the clock starts over.
+</p>
+
+<p align="center">
+  <img src="docs/pharos.png" width="420" alt="Pharos with five reminders">
+</p>
 
 ## Install
 
@@ -39,106 +21,130 @@ cd pharos
 makepkg -si
 ```
 
-Or build by hand (needs Rust and `gtk4`), for your user only, no root:
+Open **Pharos** from the launcher. From then on it starts with your session and
+lives in the tray.
 
-```sh
-make install-user      # ~/.local/bin and ~/.local/share
-```
+## Use it
 
-or system-wide with `make build && sudo make install`.
+1. **Pick the minutes.** Drag a reminder's slider (1 to 120 minutes). The
+   countdown on the right starts over each time the notification comes.
+2. **Check what you want.** Unchecked reminders stay quiet. The switch at the
+   top pauses all of them.
+3. **Close the window.** `Super+W` only closes the window. Reminders keep
+   running, and the tray icon brings the window back.
 
-Then open **Pharos** from the launcher. It tiles like any window, with its
-content centered in whatever space it gets. The first run sets Pharos to start at
-login (there's a checkbox to undo that in the pencil view).
+When a notification arrives, click it to snooze that reminder for 5 minutes.
 
-### A key for Pharos (optional)
+### Make your own
 
-To open or hide Pharos with a key, bind `pharos --toggle` in
+Click the pencil to rename or delete reminders, add new ones with
+**+ New reminder**, and choose whether Pharos starts at login.
+
+<p align="center">
+  <img src="docs/editing.png" width="420" alt="Pharos edit view">
+</p>
+
+### Keyboard
+
+| Key           | Action                          |
+| ------------- | ------------------------------- |
+| `j` `k`       | Move between reminders          |
+| `h` `l`       | Fewer / more minutes (Shift: 5) |
+| `Space`       | Turn a reminder on or off       |
+| `t`           | Pause or resume everything      |
+| `e`           | Edit mode                       |
+| `n` `r` `x`   | New, rename, delete             |
+| `Esc`         | Back, or close the window       |
+
+To open Pharos with a key, bind `pharos --toggle` in
 `~/.config/hypr/bindings.lua`.
 
-## Keyboard
+## Light on memory
 
-| Keys                 | Action                                  |
-| -------------------- | --------------------------------------- |
-| `j` `k` / `↓` `↑`    | Move between reminders                  |
-| `h` `l` / `←` `→`    | Adjust minutes (hold Shift for 5)       |
-| `Space` / `Enter`    | Turn the reminder on or off             |
-| `t`                  | Pause or resume all reminders           |
-| `e`                  | Edit mode (the pencil)                  |
-| `n`                  | New reminder                            |
-| `r` / `F2`           | Rename (edit mode)                      |
-| `x` / `Delete`       | Delete (edit mode)                      |
-| `Esc`                | Leave a field, leave edit mode, or hide |
+Pharos is a single Rust process, and it frees its window when you close it.
 
-Closing the window (`Super+W`, or `Esc`) only hides it: the reminders keep
-running in the background.
+| State                        | RAM (PSS) |
+| ---------------------------- | --------- |
+| In the background            | ~18 MB    |
+| Window open                  | ~27 MB    |
 
-## Command line
+Measured on Omarchy with `/proc/<pid>/smaps_rollup`. Your numbers vary a little
+with the theme and font.
+
+## Fits in Omarchy
+
+- **Theme.** Colors, font, spacing and corner rounding come from the current
+  Omarchy theme and change live when you switch themes.
+- **Language.** All 50 Omarchy languages, following Omarchy's language setting.
+  Built-in reminders switch language with it until you rename them.
+- **Window.** Tiles like any window and follows Omarchy's window transparency
+  (opaque, see-through or glassy).
+- **Notifications.** Sent with `omarchy notification send`, so they look like
+  every other Omarchy notification.
+- **Sleep.** After the laptop sleeps, the clocks start over quietly instead of
+  firing everything at once.
+
+<details>
+<summary><b>Command line</b></summary>
 
 ```text
-pharos                 open the window (starts Pharos if needed)
-pharos --background    start without a window (used at login)
-pharos --toggle        show or hide the window
-pharos --snooze <id>   push a reminder 5 minutes out
+pharos                   open the window (starts Pharos if needed)
+pharos --background      start without a window
+pharos --toggle          show or hide the window
+pharos --snooze <id>     push a reminder 5 minutes out
 pharos --autostart on|off
 ```
 
-## Configuration
+</details>
 
-Reminders live in `~/.config/pharos/config.toml`:
+<details>
+<summary><b>Config file</b></summary>
+
+Pharos saves everything to `~/.config/pharos/config.toml`. You don't need to
+edit it, but you can:
 
 ```toml
 enabled = true
 
 [[reminder]]
 id = 1
-preset = "water"     # a built-in reminder: its name follows Omarchy's language
+preset = "water"       # built in: the name follows Omarchy's language
 minutes = 20
 enabled = true
 
 [[reminder]]
 id = 6
-name = "Feed the cat" # your own name: never translated or overwritten
+name = "Feed the cat"  # your own name: never translated
 minutes = 90
 enabled = true
 ```
 
-The built-in reminders are created once, in your language. If you change
-Omarchy's language later, the ones you haven't renamed switch with it; the
-ones you renamed keep your text. Changing the minutes doesn't count as a rename.
-
-### Transparency
-
-Like Flea, Pharos opts its window in to Omarchy's window transparency, so it
-follows **Window Transparency** in the Omarchy menu: see-through by default,
-solid when *opaque*, frosted blur when *glassy*. `Super+Backspace` toggles it
-for the window.
-
-For a see-through background on top of that, give Pharos its own alpha in a
-theme's `shell.toml`, or in `~/.config/omarchy/shell.toml` for every theme:
+For a see-through background, set an alpha in `~/.config/omarchy/shell.toml`
+(or in a theme's `shell.toml`):
 
 ```toml
 [pharos]
 background-alpha = 0.85
 ```
 
-## Tests
+</details>
+
+<details>
+<summary><b>Build from source</b></summary>
+
+Needs Rust and `gtk4`.
 
 ```sh
-cargo test                 # unit tests and the command line, in a second
-cargo test -- --ignored    # end to end: starts Pharos with a 1-minute
-                           # reminder and waits for the notification
+make install-user              # ~/.local, no root
+make build && sudo make install
+cargo test                     # unit and command line tests
+cargo test -- --ignored        # end to end: waits for a real notification
 ```
 
-The unit tests cover the interval clock (every N minutes, then it starts
-over; pausing, snoozing, sleep), the config file, the language rules for
-built-in and renamed reminders, all 50 languages, the theme and the tray menu.
+Translations live in [`i18n/`](i18n), one file per language. Corrections from
+native speakers are welcome.
 
-## Translations
-
-Strings live in [`i18n/`](i18n), one TOML file per Omarchy language code.
-`cargo test` checks that every language has every string and keeps its
-`{placeholders}`. Corrections from native speakers are very welcome.
+</details>
 
 ## License
 

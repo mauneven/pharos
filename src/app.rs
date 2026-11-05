@@ -305,8 +305,9 @@ impl Pharos {
     pub fn toggle_window(self: &Rc<Self>) {
         let visible = self.window_visible();
         if visible {
-            if let Some(ui) = self.ui.borrow().as_ref() {
-                ui.window.close();
+            let window = self.ui.borrow().as_ref().map(|ui| ui.window.clone());
+            if let Some(w) = window {
+                w.close();
             }
         } else {
             self.present();
@@ -321,7 +322,6 @@ impl Pharos {
             .default_width(480)
             .default_height(640)
             .decorated(false)
-            .hide_on_close(true)
             .icon_name(paths::APP_ID)
             .build();
         window.add_css_class("pharos");
@@ -419,9 +419,19 @@ impl Pharos {
             glib::ControlFlow::Continue
         });
 
-        // Every map is a new Hyprland window (hiding unmaps it), so tag on
-        // each one.
+        // Every open is a new Hyprland window, so tag on each one.
         window.connect_map(|_| crate::hypr::tag_transparent());
+
+        // Closing destroys the window instead of hiding it: Pharos spends
+        // most of its life in the background, and a hidden window would keep
+        // every widget and render buffer in memory.
+        let this = self.clone();
+        window.connect_close_request(move |_| {
+            this.ui.borrow_mut().take();
+            this.editing.set(false);
+            glib::timeout_add_local_once(Duration::from_millis(500), release_memory);
+            glib::Propagation::Proceed
+        });
 
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -989,5 +999,17 @@ fn snapshot_to_png(window: &gtk::ApplicationWindow, path: &std::path::Path) {
     let texture = renderer.render_texture(&node, None);
     if let Err(err) = texture.save_to_png(path) {
         eprintln!("pharos: snapshot failed: {err}");
+    }
+}
+
+/// Hands freed heap pages back to the system, so closing the window really
+/// lowers what Pharos uses.
+fn release_memory() {
+    unsafe extern "C" {
+        fn malloc_trim(pad: usize) -> std::ffi::c_int;
+    }
+    // SAFETY: glibc's malloc_trim only releases free memory.
+    unsafe {
+        malloc_trim(0);
     }
 }

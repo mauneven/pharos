@@ -56,6 +56,14 @@ fn main() -> glib::ExitCode {
         Ok(_) => {}
     }
 
+    // Pharos draws a handful of rows: GTK's software renderer handles that
+    // with no visible difference and about a third of the memory of the GPU
+    // renderers. GSK_RENDERER=vulkan pharos still picks another one.
+    if std::env::var_os("GSK_RENDERER").is_none() {
+        // SAFETY: no other threads exist yet.
+        unsafe { std::env::set_var("GSK_RENDERER", "cairo") };
+    }
+
     let app = gtk::Application::builder()
         .application_id(paths::APP_ID)
         .flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE)
