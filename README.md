@@ -35,12 +35,13 @@ cd beacon
 makepkg -si
 ```
 
-Or build by hand (needs Rust and `gtk4`):
+Or build by hand (needs Rust and `gtk4`), for your user only, no root:
 
 ```sh
-make build
-sudo make install
+make install-user      # ~/.local/bin and ~/.local/share
 ```
+
+or system-wide with `make build && sudo make install`.
 
 Then open **Beacon** from the launcher. The first run sets Beacon to start at
 login (there's a checkbox to undo that in the pencil view).
