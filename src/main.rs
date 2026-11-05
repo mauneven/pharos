@@ -6,11 +6,13 @@
 mod app;
 mod autostart;
 mod config;
+mod hypr;
 mod i18n;
 mod notify;
 mod paths;
 mod scheduler;
 mod theme;
+mod tray;
 
 use gtk::prelude::*;
 use gtk::{gio, glib};
@@ -26,7 +28,6 @@ Usage: beacon [option]
   --background        Start without opening the window
   --toggle            Show or hide the window
   --snooze <id>       Push a reminder's next notification 5 minutes out
-  --quit              Stop the running Beacon
   --autostart on|off  Start Beacon at login, or stop doing so
   -V, --version       Print the version
   -h, --help          Print this help

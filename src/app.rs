@@ -10,11 +10,15 @@ use std::time::{Duration, SystemTime};
 use crate::config::{Config, MAX_MINUTES, MIN_MINUTES, Reminder};
 use crate::scheduler::{self, Scheduler};
 use crate::theme::Theme;
+use crate::tray::{self, Tray};
 use crate::{autostart, i18n, notify, paths};
 
 const SNOOZE: Duration = Duration::from_secs(5 * 60);
-/// Widest the content column grows when the window is tiled wide.
-const MAX_COLUMN: f64 = 520.0;
+/// Width of the content column. The window is this column plus padding, and
+/// never resizes by hand, so Hyprland floats it centered like a panel.
+const COLUMN: f64 = 440.0;
+/// Tallest the reminder list grows before it scrolls.
+const MAX_LIST_HEIGHT: f64 = 520.0;
 
 const ICON_EDIT: &str = "\u{f03eb}"; // nf-md-pencil
 const ICON_DONE: &str = "\u{f012c}"; // nf-md-check
@@ -33,11 +37,14 @@ pub struct Beacon {
     save_source: RefCell<Option<glib::SourceId>>,
     reload_source: RefCell<Option<glib::SourceId>>,
     monitors: RefCell<Vec<gio::FileMonitor>>,
+    tray: RefCell<Option<Tray>>,
     _hold: gio::ApplicationHoldGuard,
 }
 
 struct Ui {
     window: gtk::ApplicationWindow,
+    root: gtk::Box,
+    scroller: gtk::ScrolledWindow,
     columns: Vec<gtk::Widget>,
     list: gtk::Box,
     rows: Vec<Row>,
@@ -88,8 +95,10 @@ impl Beacon {
             save_source: RefCell::new(None),
             reload_source: RefCell::new(None),
             monitors: RefCell::new(Vec::new()),
+            tray: RefCell::new(None),
             _hold: app.hold(),
         });
+        this.start_tray();
         this.apply_theme();
         this.watch_files();
 
@@ -99,6 +108,26 @@ impl Beacon {
             glib::ControlFlow::Continue
         });
         this
+    }
+
+    // ------------------------------------------------------------ tray
+
+    fn start_tray(self: &Rc<Self>) {
+        let (tx, rx) = async_channel::unbounded();
+        *self.tray.borrow_mut() = Tray::spawn(self.config.borrow().enabled, tx);
+        let this = self.clone();
+        glib::spawn_future_local(async move {
+            while let Ok(action) = rx.recv().await {
+                match action {
+                    tray::Action::Open => this.present(),
+                    tray::Action::SetEnabled(on) => this.set_master(on),
+                    tray::Action::Quit => {
+                        this.flush();
+                        this.app.quit();
+                    }
+                }
+            }
+        });
     }
 
     // ------------------------------------------------------------ clock
@@ -195,6 +224,9 @@ impl Beacon {
         *self.theme.borrow_mut() = Theme::load();
         self.apply_theme();
         if i18n::reload() {
+            if let Some(tray) = self.tray.borrow().as_ref() {
+                tray.relabel();
+            }
             self.apply_direction();
             self.relabel();
             self.rebuild();
@@ -284,15 +316,18 @@ impl Beacon {
         let window = gtk::ApplicationWindow::builder()
             .application(&self.app)
             .title("Beacon")
-            .default_width(460)
-            .default_height(620)
+            .resizable(false)
             .decorated(false)
             .hide_on_close(true)
             .icon_name(paths::APP_ID)
             .build();
         window.add_css_class("beacon");
 
+        // The column sits in the middle of the window both ways, so it stays
+        // centered even if a user rule tiles the window.
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        root.set_halign(gtk::Align::Center);
+        root.set_valign(gtk::Align::Center);
 
         // Header: title and status, master switch, pencil.
         let header = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -342,13 +377,14 @@ impl Beacon {
         content.append(&edit_extras);
         let scroller = gtk::ScrolledWindow::builder()
             .hscrollbar_policy(gtk::PolicyType::Never)
-            .vexpand(true)
+            .propagate_natural_height(true)
             .child(&content)
             .build();
 
         let hint = gtk::Label::new(None);
         hint.add_css_class("hint");
         hint.set_wrap(true);
+        hint.set_max_width_chars(40);
         hint.set_justify(gtk::Justification::Center);
 
         root.append(&header);
@@ -368,10 +404,10 @@ impl Beacon {
                 eprintln!("beacon: could not change autostart: {err}");
             }
         });
-        let this = self.clone();
-        scroller
-            .hadjustment()
-            .connect_page_size_notify(move |_| this.relayout());
+
+        // Every map is a new Hyprland window (hiding unmaps it), so tag on
+        // each one.
+        window.connect_map(|_| crate::hypr::tag_transparent());
 
         let keys = gtk::EventControllerKey::new();
         keys.set_propagation_phase(gtk::PropagationPhase::Capture);
@@ -381,6 +417,8 @@ impl Beacon {
 
         *self.ui.borrow_mut() = Some(Ui {
             window,
+            root,
+            scroller,
             columns: vec![header.upcast(), content.upcast(), hint.clone().upcast()],
             list,
             rows: Vec::new(),
@@ -398,23 +436,21 @@ impl Beacon {
         self.rebuild();
     }
 
-    /// Centers a column of at most MAX_COLUMN px, with the shell's panel
-    /// padding, whatever size Hyprland gives the window.
+    /// Sizes the column and its padding from the theme's spacing scale, the
+    /// way the shell scales its panels.
     fn relayout(&self) {
         let ui = self.ui.borrow();
         let Some(ui) = ui.as_ref() else { return };
         let theme = self.theme.borrow();
         let pad = theme.padding();
-        let width = ui.window.width() as f64;
-        let max = MAX_COLUMN * theme.gap(1.0).max(1) as f64;
-        let side = if width > max + 2.0 * pad as f64 {
-            ((width - max) / 2.0).round() as i32
-        } else {
-            pad
-        };
+        let scale = theme.gap(100.0) as f64 / 100.0;
+        ui.root
+            .set_size_request((COLUMN * scale).round() as i32 + 2 * pad, -1);
+        ui.scroller
+            .set_max_content_height((MAX_LIST_HEIGHT * scale).round() as i32);
         for (i, w) in ui.columns.iter().enumerate() {
-            w.set_margin_start(side);
-            w.set_margin_end(side);
+            w.set_margin_start(pad);
+            w.set_margin_end(pad);
             match i {
                 0 => {
                     w.set_margin_top(pad + theme.gap(6.0));
@@ -483,6 +519,7 @@ impl Beacon {
             let empty = gtk::Label::new(Some(&i18n::tr("empty")));
             empty.add_css_class("empty");
             empty.set_wrap(true);
+            empty.set_max_width_chars(40);
             empty.set_justify(gtk::Justification::Center);
             list.append(&empty);
         }
@@ -703,11 +740,22 @@ impl Beacon {
                 .borrow_mut()
                 .restart_all(&cfg, SystemTime::now());
         }
-        if let Some(ui) = self.ui.borrow().as_ref() {
+        if let Some(tray) = self.tray.borrow().as_ref() {
+            tray.set_enabled(on);
+        }
+        let switch = self.ui.borrow().as_ref().map(|ui| {
             if on {
                 ui.list.remove_css_class("paused");
             } else {
                 ui.list.add_css_class("paused");
+            }
+            ui.master.clone()
+        });
+        // From the tray: keep the window's switch in step. Its handler
+        // returns early because the config already matches.
+        if let Some(sw) = switch {
+            if sw.is_active() != on {
+                sw.set_active(on);
             }
         }
         self.schedule_save();
@@ -838,11 +886,6 @@ impl Beacon {
             w.is::<gtk::Button>() || w.is::<gtk::CheckButton>() || w.is::<gtk::Switch>()
         });
 
-        if ctrl && matches!(key, Key::q | Key::Q) {
-            self.flush();
-            self.app.quit();
-            return Stop;
-        }
         if ctrl && matches!(key, Key::w | Key::W) {
             window.close();
             return Stop;

@@ -26,6 +26,9 @@ clock starts over.** Set *Drink water* to 20 minutes and you're reminded every
 - **Every Omarchy language.** All 50 languages, following
   `~/.config/omarchy/language` live, with right-to-left layout for Arabic,
   Persian, Hebrew and Urdu.
+- **A tray icon in the Omarchy bar.** Left click opens Beacon; right click has
+  Open, Turn on / Turn off and Quit. It takes the bar's color in every theme,
+  and loses its signal bars while reminders are paused.
 - **Small and quiet.** Rust and GTK4, one process. If the laptop sleeps, the
   clocks restart quietly instead of firing a backlog.
 
@@ -45,19 +48,14 @@ make install-user      # ~/.local/bin and ~/.local/share
 
 or system-wide with `make build && sudo make install`.
 
-Then open **Beacon** from the launcher. The first run sets Beacon to start at
+Then open **Beacon** from the launcher. It opens as a small floating card in
+the middle of the screen. The first run sets Beacon to start at
 login (there's a checkbox to undo that in the pencil view).
 
-### Floating window (optional)
+### A key for Beacon (optional)
 
-Beacon works tiled. If you'd rather have it float like a small panel, add this
-to `~/.config/hypr/hyprland.lua` (or any file it loads):
-
-```lua
-o.window("com\\.mauneven\\.beacon", { float = true, center = true, size = { 460, 640 } })
-```
-
-To open it with a key, bind `beacon --toggle`.
+To open or hide Beacon with a key, bind `beacon --toggle` in
+`~/.config/hypr/bindings.lua`.
 
 ## Keyboard
 
@@ -72,9 +70,9 @@ To open it with a key, bind `beacon --toggle`.
 | `r` / `F2`           | Rename (edit mode)                      |
 | `x` / `Delete`       | Delete (edit mode)                      |
 | `Esc`                | Leave a field, leave edit mode, or hide |
-| `Ctrl+Q`             | Quit Beacon completely                  |
 
-Closing the window only hides it: reminders keep running until you quit.
+Closing the window (`Super+W`, or `Esc`) only hides it: the reminders keep
+running in the background.
 
 ## Command line
 
@@ -83,7 +81,6 @@ beacon                 open the window (starts Beacon if needed)
 beacon --background    start without a window (used at login)
 beacon --toggle        show or hide the window
 beacon --snooze <id>   push a reminder 5 minutes out
-beacon --quit          stop Beacon
 beacon --autostart on|off
 ```
 
@@ -113,8 +110,13 @@ ones you renamed keep your text. Changing the minutes doesn't count as a rename.
 
 ### Transparency
 
-Like Flea, Beacon takes a background alpha from a theme's `shell.toml`, or
-from `~/.config/omarchy/shell.toml` for every theme:
+Like Flea, Beacon opts its window in to Omarchy's window transparency, so it
+follows **Window Transparency** in the Omarchy menu: see-through by default,
+solid when *opaque*, frosted blur when *glassy*. `Super+Backspace` toggles it
+for the window.
+
+For a see-through background on top of that, give Beacon its own alpha in a
+theme's `shell.toml`, or in `~/.config/omarchy/shell.toml` for every theme:
 
 ```toml
 [beacon]

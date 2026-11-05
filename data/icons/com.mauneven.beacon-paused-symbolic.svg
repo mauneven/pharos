@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+  <!-- Paused: the light without its signal bars. -->
+  <g fill="none" stroke="#2e3436" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M10 7h4v4h-4z"/>
+    <path d="M12 11v10M8 21h8"/>
+  </g>
+</svg>

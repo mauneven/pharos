@@ -196,6 +196,17 @@ mod tests {
     }
 
     #[test]
+    fn hints_have_no_quit_key() {
+        // Omarchy closes windows with Super+W; Beacon keeps running.
+        for (code, _) in CATALOGS {
+            let cat = parse(code);
+            for key in ["hint_normal", "hint_editing"] {
+                assert!(!cat.strings[key].contains("ctrl+q"), "{code}: {key}");
+            }
+        }
+    }
+
+    #[test]
     fn resolves_like_omarchy() {
         assert_eq!(resolve("es-MX"), "es-MX");
         assert_eq!(resolve("es"), "es-MX");
