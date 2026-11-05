@@ -19,8 +19,15 @@ fn main() {
     for code in &codes {
         let path = dir.join(format!("{code}.toml"));
         println!("cargo:rerun-if-changed={}", path.display());
-        out.push_str(&format!("    ({code:?}, include_str!({:?})),\n", path.display().to_string()));
+        out.push_str(&format!(
+            "    ({code:?}, include_str!({:?})),\n",
+            path.display().to_string()
+        ));
     }
     out.push_str("];\n");
-    fs::write(Path::new(&env::var("OUT_DIR").unwrap()).join("catalogs.rs"), out).unwrap();
+    fs::write(
+        Path::new(&env::var("OUT_DIR").unwrap()).join("catalogs.rs"),
+        out,
+    )
+    .unwrap();
 }

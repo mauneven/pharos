@@ -59,7 +59,10 @@ impl Rgba {
         let r = parts[0].parse::<f64>().ok()?;
         let g = parts[1].parse::<f64>().ok()?;
         let b = parts[2].parse::<f64>().ok()?;
-        let a = parts.get(3).and_then(|v| v.parse::<f64>().ok()).unwrap_or(1.0);
+        let a = parts
+            .get(3)
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(1.0);
         Some(Rgba {
             r: r.clamp(0.0, 255.0) as u8,
             g: g.clamp(0.0, 255.0) as u8,
@@ -73,7 +76,11 @@ fn parse_hex(hex: &str) -> Option<Rgba> {
     let byte = |i: usize| u8::from_str_radix(hex.get(i..i + 2)?, 16).ok();
     match hex.len() {
         3 => {
-            let n = |i: usize| u8::from_str_radix(hex.get(i..i + 1)?, 16).ok().map(|v| v * 17);
+            let n = |i: usize| {
+                u8::from_str_radix(hex.get(i..i + 1)?, 16)
+                    .ok()
+                    .map(|v| v * 17)
+            };
             Some(Rgba::rgb(n(0)?, n(1)?, n(2)?))
         }
         6 => Some(Rgba::rgb(byte(0)?, byte(2)?, byte(4)?)),
@@ -148,13 +155,33 @@ fn width(v: Option<&Value>) -> Option<f64> {
 }
 
 impl Theme {
+    /// The live Omarchy theme.
     pub fn load() -> Theme {
         let theme_dir = paths::omarchy_current().join("theme");
-        let colors = read_table(&theme_dir.join("colors.toml"));
-        let shell = read_table(&theme_dir.join("shell.toml"));
-        let user_shell = read_table(&paths::omarchy_user_shell_toml());
+        Theme::from_parts(
+            &read_table(&theme_dir.join("colors.toml")),
+            &read_table(&theme_dir.join("shell.toml")),
+            &read_table(&paths::omarchy_user_shell_toml()),
+            font_family(),
+            hyprland_rounding(),
+        )
+    }
 
-        let color = |key: &str| colors.get(key).and_then(Value::as_str).and_then(Rgba::parse);
+    /// A theme from already-read sources: the theme's colors.toml and
+    /// shell.toml, the user's shell.toml, the font and Hyprland's rounding.
+    pub fn from_parts(
+        colors: &Table,
+        shell: &Table,
+        user_shell: &Table,
+        font_family: String,
+        radius: f64,
+    ) -> Theme {
+        let color = |key: &str| {
+            colors
+                .get(key)
+                .and_then(Value::as_str)
+                .and_then(Rgba::parse)
+        };
 
         let background = color("background").unwrap_or(Rgba::rgb(0x12, 0x12, 0x12));
         let foreground = color("foreground").unwrap_or(Rgba::rgb(0xe6, 0xe6, 0xe6));
@@ -177,7 +204,7 @@ impl Theme {
                 _ => {}
             }
             if let Some(key) = token.strip_prefix("hyprland.") {
-                return get(&shell, "hyprland", key)
+                return get(shell, "hyprland", key)
                     .and_then(Value::as_str)
                     .and_then(Rgba::parse)
                     .unwrap_or(fallback);
@@ -186,7 +213,7 @@ impl Theme {
         };
 
         let state = |name: &str, fill_alpha: f64, border_alpha: f64, border_width: f64| {
-            let c = |k: &str| get(&shell, "controls", &format!("{name}-{k}"));
+            let c = |k: &str| get(shell, "controls", &format!("{name}-{k}"));
             let base = c("color")
                 .and_then(Value::as_str)
                 .map(|s| resolve(s, foreground))
@@ -206,34 +233,39 @@ impl Theme {
         let hover = state("hover-cursor", 0.08, 0.25, 1.0);
         let focus = state("focus", 0.08, 0.25, 1.0);
         let selected = state("selected", 0.18, 1.0, 0.0);
-        let ctl = |k: &str, d: f64| num(get(&shell, "controls", k)).unwrap_or(d);
+        let ctl = |k: &str, d: f64| num(get(shell, "controls", k)).unwrap_or(d);
         let pressed_fill = foreground.alpha(ctl("pressed-fill-alpha", 0.22));
         let selection_fill = accent.alpha(ctl("selection-fill-alpha", 0.35));
 
-        let tooltip_bg = get(&shell, "tooltip", "background")
+        let tooltip_bg = get(shell, "tooltip", "background")
             .and_then(Value::as_str)
             .map(|s| resolve(s, background))
             .unwrap_or(background)
-            .alpha(num(get(&shell, "tooltip", "background-alpha")).unwrap_or(0.97));
-        let tooltip_border = get(&shell, "tooltip", "border")
+            .alpha(num(get(shell, "tooltip", "background-alpha")).unwrap_or(0.97));
+        let tooltip_border = get(shell, "tooltip", "border")
             .and_then(Value::as_str)
             .map(|s| resolve(s, foreground))
             .unwrap_or(foreground);
 
         // [pharos] background-alpha: the user-wide file wins over the theme.
-        let window_alpha = num(get(&user_shell, "pharos", "background-alpha"))
-            .or_else(|| num(get(&shell, "pharos", "background-alpha")))
+        let window_alpha = num(get(user_shell, "pharos", "background-alpha"))
+            .or_else(|| num(get(shell, "pharos", "background-alpha")))
             .unwrap_or(1.0)
             .clamp(0.0, 1.0);
 
-        let base_size = num(get(&shell, "font", "base-size"))
+        let base_size = num(get(shell, "font", "base-size"))
             .filter(|v| *v >= 1.0)
             .unwrap_or(12.0);
-        let scale = num(get(&shell, "spacing", "scale")).unwrap_or(1.0).max(0.25);
-        let scale_with_font = get(&shell, "spacing", "scale-with-font")
+        let scale = num(get(shell, "spacing", "scale")).unwrap_or(1.0).max(0.25);
+        let scale_with_font = get(shell, "spacing", "scale-with-font")
             .and_then(Value::as_bool)
             .unwrap_or(true);
-        let spacing = scale * if scale_with_font { base_size / 12.0 } else { 1.0 };
+        let spacing = scale
+            * if scale_with_font {
+                base_size / 12.0
+            } else {
+                1.0
+            };
 
         Theme {
             background,
@@ -251,10 +283,10 @@ impl Theme {
             selection_fill,
             tooltip_bg,
             tooltip_border,
-            font_family: font_family(),
+            font_family,
             base_size,
             spacing,
-            radius: hyprland_rounding(),
+            radius: radius.clamp(0.0, 24.0),
         }
     }
 
@@ -287,7 +319,10 @@ impl Theme {
         let selected_fill = self.foreground.alpha(s.fill.a).css();
         let track = self.foreground.alpha(s.fill.a).css();
         let knob = format!("{}px", (14.0 * self.spacing).round().max(10.0));
-        let knob_margin = format!("-{}px", ((14.0 * self.spacing).round().max(10.0) - 4.0) / 2.0);
+        let knob_margin = format!(
+            "-{}px",
+            ((14.0 * self.spacing).round().max(10.0) - 4.0) / 2.0
+        );
         let check = format!("{}px", (16.0 * self.spacing).round().max(12.0));
         let family = self.font_family.replace('"', "");
 
@@ -567,8 +602,12 @@ fn hyprland_rounding() -> f64 {
         .args(["getoption", "decoration:rounding", "-j"])
         .output();
     let Ok(out) = out else { return 0.0 };
-    let text = String::from_utf8_lossy(&out.stdout);
-    // {"option": "decoration:rounding", "int": 0, ...}
+    parse_rounding(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// `hyprctl getoption decoration:rounding -j` output to pixels:
+/// `{"option": "decoration:rounding", "int": 0, ...}`.
+fn parse_rounding(text: &str) -> f64 {
     text.split("\"int\"")
         .nth(1)
         .and_then(|rest| {
@@ -597,5 +636,143 @@ mod tests {
         assert_eq!((c.r, c.g, c.b, c.a), (10, 20, 30, 0.5));
         assert_eq!(Rgba::parse("rgb(0a0b0c)"), Some(Rgba::rgb(10, 11, 12)));
         assert_eq!(Rgba::parse("nope"), None);
+    }
+
+    const TOKYO_COLORS: &str = r##"
+        mode = "dark"
+        accent = "#7aa2f7"
+        background = "#1a1b26"
+        foreground = "#a9b1d6"
+        muted = "#565f89"
+        red = "#f7768e"
+    "##;
+
+    fn table(raw: &str) -> Table {
+        raw.parse().unwrap()
+    }
+
+    fn tokyo(shell: &str, user: &str, radius: f64) -> Theme {
+        Theme::from_parts(
+            &table(TOKYO_COLORS),
+            &table(shell),
+            &table(user),
+            "JetBrainsMono Nerd Font".into(),
+            radius,
+        )
+    }
+
+    #[test]
+    fn uses_the_theme_palette() {
+        let css = tokyo("", "", 0.0).css();
+        assert!(
+            css.contains("background-color: rgba(26, 27, 38, 1.000)"),
+            "window background"
+        );
+        assert!(
+            css.contains("color: rgba(169, 177, 214, 1.000)"),
+            "text color"
+        );
+        assert!(
+            css.contains("background: rgba(122, 162, 247, 1.000)"),
+            "accent on checked controls"
+        );
+        assert!(css.contains("font-family: \"JetBrainsMono Nerd Font\", monospace"));
+    }
+
+    #[test]
+    fn square_when_hyprland_is_square() {
+        let css = tokyo("", "", 0.0).css();
+        assert!(
+            !css.contains("999px"),
+            "nothing is pill-shaped with rounding 0"
+        );
+        assert!(css.contains("border-radius: 0px"));
+        let rounded = tokyo("", "", 8.0).css();
+        assert!(rounded.contains("border-radius: 8px"));
+    }
+
+    #[test]
+    fn follows_the_shell_control_tokens() {
+        let shell = r##"
+            [hyprland]
+            active-border = "rgba(33ccffee) rgba(00ff99ee) 45deg"
+            [controls]
+            normal-color = "accent"
+            normal-fill-alpha = 0.5
+            normal-border = "hyprland.active-border"
+            normal-border-alpha = 1.0
+            normal-border-width = "2 1"
+        "##;
+        let css = tokyo(shell, "", 0.0).css();
+        assert!(
+            css.contains("background: rgba(122, 162, 247, 0.500)"),
+            "accent fill at 0.5"
+        );
+        assert!(
+            css.contains("2px solid rgba(51, 204, 255, 0.933)"),
+            "gradient border resolves to its first stop"
+        );
+    }
+
+    #[test]
+    fn background_alpha_user_file_wins() {
+        let theme_shell = "[pharos]\nbackground-alpha = 0.8\n";
+        let user_shell = "[pharos]\nbackground-alpha = 0.6\n";
+        assert!(
+            tokyo(theme_shell, "", 0.0)
+                .css()
+                .contains("rgba(26, 27, 38, 0.800)")
+        );
+        assert!(
+            tokyo(theme_shell, user_shell, 0.0)
+                .css()
+                .contains("rgba(26, 27, 38, 0.600)")
+        );
+    }
+
+    #[test]
+    fn font_size_scales_text_and_spacing() {
+        let t = tokyo("[font]\nbase-size = 18\n", "", 0.0);
+        assert!(t.css().contains("font-size: 18.0px"));
+        assert_eq!(t.padding(), 27, "18px panels at 1.5x");
+        assert_eq!(tokyo("", "", 0.0).padding(), 18);
+    }
+
+    #[test]
+    fn survives_an_empty_theme() {
+        let t = Theme::from_parts(
+            &Table::new(),
+            &Table::new(),
+            &Table::new(),
+            "monospace".into(),
+            0.0,
+        );
+        let css = t.css();
+        assert_eq!(
+            css.matches('{').count(),
+            css.matches('}').count(),
+            "balanced CSS"
+        );
+        assert!(css.contains("window.pharos"));
+    }
+
+    #[test]
+    fn css_is_balanced() {
+        let css = tokyo("", "", 4.0).css();
+        assert_eq!(css.matches('{').count(), css.matches('}').count());
+    }
+
+    #[test]
+    fn reads_hyprland_rounding() {
+        assert_eq!(
+            parse_rounding(r#"{"option": "decoration:rounding", "int": 0, "set": true}"#),
+            0.0
+        );
+        assert_eq!(
+            parse_rounding(r#"{"option": "decoration:rounding", "int": 10, "set": true}"#),
+            10.0
+        );
+        assert_eq!(parse_rounding("garbage"), 0.0);
+        assert_eq!(parse_rounding(r#"{"int": 99}"#), 24.0);
     }
 }

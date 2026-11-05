@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::io::Write;
+use std::path::Path;
 
 use crate::{i18n, paths};
 
@@ -93,8 +94,17 @@ pub enum Loaded {
 
 impl Config {
     pub fn load() -> Loaded {
-        let path = paths::config_file();
-        match std::fs::read_to_string(&path) {
+        Config::load_from(&paths::config_file())
+    }
+
+    pub fn save(&self) -> std::io::Result<()> {
+        self.save_to(&paths::config_file())
+    }
+
+    /// Reads a config file. A missing file is a first run: defaults are
+    /// written. A broken file is kept aside as `*.toml.broken`.
+    pub fn load_from(path: &Path) -> Loaded {
+        match std::fs::read_to_string(path) {
             Ok(raw) => match toml::from_str::<Config>(&raw) {
                 Ok(mut cfg) => {
                     cfg.sanitize();
@@ -103,20 +113,20 @@ impl Config {
                 Err(err) => {
                     // Keep the broken file for the user instead of overwriting it.
                     let backup = path.with_extension("toml.broken");
-                    let _ = std::fs::rename(&path, &backup);
+                    let _ = std::fs::rename(path, &backup);
                     eprintln!(
                         "pharos: {} is invalid ({err}); moved it to {} and started fresh",
                         path.display(),
                         backup.display()
                     );
                     let cfg = Config::default();
-                    let _ = cfg.save();
+                    let _ = cfg.save_to(path);
                     Loaded::Existing(cfg)
                 }
             },
             Err(_) => {
                 let cfg = Config::default();
-                if let Err(err) = cfg.save() {
+                if let Err(err) = cfg.save_to(path) {
                     eprintln!("pharos: could not write {}: {err}", path.display());
                 }
                 Loaded::FirstRun(cfg)
@@ -138,8 +148,7 @@ impl Config {
     }
 
     /// Atomic write: a crash mid-save never leaves a half-written config.
-    pub fn save(&self) -> std::io::Result<()> {
-        let path = paths::config_file();
+    pub fn save_to(&self, path: &Path) -> std::io::Result<()> {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
@@ -181,6 +190,7 @@ mod tests {
 
     #[test]
     fn rename_keeps_or_breaks_localization() {
+        let _lang = crate::testutil::language("en");
         let mut r = Reminder::preset(1, "water", 20, true);
         let localized = r.display_name();
         r.rename(&localized);
@@ -211,5 +221,152 @@ mod tests {
         assert_eq!(cfg.reminders[1].minutes, MAX_MINUTES);
         assert_ne!(cfg.reminders[0].id, cfg.reminders[1].id);
         assert!(cfg.reminders[1].enabled);
+    }
+
+    use crate::testutil::{TempDir, language};
+
+    fn names(cfg: &Config) -> Vec<String> {
+        cfg.reminders.iter().map(Reminder::display_name).collect()
+    }
+
+    #[test]
+    fn first_run_writes_the_defaults() {
+        let dir = TempDir::new("first-run");
+        let path = dir.path().join("pharos/config.toml");
+        let Loaded::FirstRun(cfg) = Config::load_from(&path) else {
+            panic!("a missing file is a first run");
+        };
+        assert_eq!(cfg, Config::default());
+        assert!(path.is_file(), "defaults are saved right away");
+        let Loaded::Existing(again) = Config::load_from(&path) else {
+            panic!("the second start is not a first run");
+        };
+        assert_eq!(again, cfg);
+    }
+
+    #[test]
+    fn defaults_match_the_app() {
+        let cfg = Config::default();
+        assert!(cfg.enabled);
+        let minutes: Vec<u32> = cfg.reminders.iter().map(|r| r.minutes).collect();
+        assert_eq!(minutes, [20, 24, 40, 10, 30]);
+        let on: Vec<bool> = cfg.reminders.iter().map(|r| r.enabled).collect();
+        assert_eq!(on, [true, false, true, true, true]);
+    }
+
+    #[test]
+    fn edits_survive_a_restart() {
+        let dir = TempDir::new("edits");
+        let path = dir.path().join("config.toml");
+        let mut cfg = Config {
+            enabled: false,
+            ..Config::default()
+        };
+        cfg.reminders[0].minutes = 55;
+        cfg.reminders[1].enabled = true;
+        cfg.reminders[2].rename("Walk the dog");
+        cfg.reminders.remove(3);
+        let id = cfg.next_id();
+        cfg.reminders
+            .push(Reminder::preset(id, i18n::NEW_PRESET, 30, true));
+        cfg.save_to(&path).unwrap();
+        let Loaded::Existing(back) = Config::load_from(&path) else {
+            panic!()
+        };
+        assert_eq!(back, cfg);
+        assert!(
+            !dir.path().join("config.toml.tmp").exists(),
+            "no temp file left over"
+        );
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .starts_with("# Pharos reminders")
+        );
+    }
+
+    #[test]
+    fn a_broken_file_is_kept_aside() {
+        let dir = TempDir::new("broken");
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "this is [not toml").unwrap();
+        let Loaded::Existing(cfg) = Config::load_from(&path) else {
+            panic!("a broken file is not a first run")
+        };
+        assert_eq!(cfg, Config::default());
+        let kept = dir.path().join("config.toml.broken");
+        assert_eq!(std::fs::read_to_string(kept).unwrap(), "this is [not toml");
+    }
+
+    #[test]
+    fn unedited_reminders_follow_the_language() {
+        let lang = language("es-MX");
+        let cfg = Config::default();
+        assert_eq!(names(&cfg)[0], "Tomar agua");
+        lang.switch("en");
+        assert_eq!(names(&cfg)[0], "Drink water");
+        lang.switch("ja");
+        assert_ne!(names(&cfg)[0], "Drink water");
+    }
+
+    #[test]
+    fn edited_names_stay_in_any_language() {
+        let lang = language("es-MX");
+        let mut cfg = Config::default();
+        cfg.reminders[0].rename("Agua con limón");
+        lang.switch("en");
+        assert_eq!(names(&cfg)[0], "Agua con limón");
+        // The other, unedited reminders still follow the language.
+        assert_eq!(names(&cfg)[1], "Stretch your hands");
+    }
+
+    #[test]
+    fn changing_minutes_is_not_an_edit() {
+        let lang = language("es-MX");
+        let mut cfg = Config::default();
+        cfg.reminders[0].minutes = 45;
+        cfg.reminders[0].enabled = false;
+        lang.switch("en");
+        assert_eq!(names(&cfg)[0], "Drink water");
+        assert_eq!(cfg.reminders[0].name, None);
+    }
+
+    #[test]
+    fn the_language_choice_survives_saving() {
+        let dir = TempDir::new("lang-save");
+        let path = dir.path().join("config.toml");
+        let lang = language("es-MX");
+        let mut cfg = Config::default();
+        cfg.reminders[1].rename("Manos arriba");
+        cfg.save_to(&path).unwrap();
+        lang.switch("en");
+        let Loaded::Existing(back) = Config::load_from(&path) else {
+            panic!()
+        };
+        assert_eq!(names(&back)[0], "Drink water");
+        assert_eq!(names(&back)[1], "Manos arriba");
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            !text.contains("Tomar agua"),
+            "preset names are never stored"
+        );
+    }
+
+    #[test]
+    fn a_new_reminder_is_named_in_the_language_until_renamed() {
+        let lang = language("es-MX");
+        let r = Reminder::preset(9, i18n::NEW_PRESET, 30, true);
+        assert_eq!(r.display_name(), "Nuevo recordatorio");
+        lang.switch("en");
+        assert_eq!(r.display_name(), "New reminder");
+    }
+
+    #[test]
+    fn next_id_never_reuses_an_id() {
+        let mut cfg = Config::default();
+        let max = cfg.reminders.iter().map(|r| r.id).max().unwrap();
+        assert_eq!(cfg.next_id(), max + 1);
+        cfg.reminders.clear();
+        assert_eq!(cfg.next_id(), 1);
     }
 }

@@ -30,13 +30,20 @@ fn our_windows() -> Vec<String> {
     let Ok(out) = Command::new("hyprctl").args(["clients", "-j"]).output() else {
         return Vec::new();
     };
-    let Ok(clients) = serde_json::from_slice::<Vec<serde_json::Value>>(&out.stdout) else {
+    untagged_windows(&out.stdout, std::process::id())
+}
+
+/// From `hyprctl clients -j`: the addresses of this process's Pharos
+/// windows that don't carry the `transparent` tag yet.
+fn untagged_windows(json: &[u8], pid: u32) -> Vec<String> {
+    let Ok(clients) = serde_json::from_slice::<Vec<serde_json::Value>>(json) else {
         return Vec::new();
     };
-    let pid = std::process::id() as i64;
     clients
         .iter()
-        .filter(|c| c["pid"].as_i64() == Some(pid) && c["class"].as_str() == Some(paths::APP_ID))
+        .filter(|c| {
+            c["pid"].as_i64() == Some(i64::from(pid)) && c["class"].as_str() == Some(paths::APP_ID)
+        })
         .filter(|c| {
             // Already tagged (the window was shown before): leave it be.
             !c["tags"]
@@ -50,14 +57,44 @@ fn our_windows() -> Vec<String> {
 fn tag(addr: &str) {
     // Hyprland's Lua config takes Lua dispatches; older configs the classic
     // `tagwindow` dispatcher.
-    let lua = format!("hl.dsp.window.tag({{ window = \"address:{addr}\", tag = \"+transparent\" }})");
+    let lua =
+        format!("hl.dsp.window.tag({{ window = \"address:{addr}\", tag = \"+transparent\" }})");
     let ok = Command::new("hyprctl")
         .args(["dispatch", &lua])
         .output()
         .is_ok_and(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).trim() == "ok");
     if !ok {
         let _ = Command::new("hyprctl")
-            .args(["dispatch", "tagwindow", "+transparent", &format!("address:{addr}")])
+            .args([
+                "dispatch",
+                "tagwindow",
+                "+transparent",
+                &format!("address:{addr}"),
+            ])
             .output();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn picks_only_our_untagged_windows() {
+        let json = br#"[
+            {"address": "0xa", "pid": 42, "class": "com.mauneven.pharos", "tags": []},
+            {"address": "0xb", "pid": 42, "class": "com.mauneven.pharos",
+             "tags": ["transparent", "transparent-window*"]},
+            {"address": "0xc", "pid": 7, "class": "com.mauneven.pharos", "tags": []},
+            {"address": "0xd", "pid": 42, "class": "foot", "tags": []}
+        ]"#;
+        assert_eq!(untagged_windows(json, 42), vec!["0xa".to_string()]);
+    }
+
+    #[test]
+    fn tolerates_bad_output() {
+        assert!(untagged_windows(b"", 1).is_empty());
+        assert!(untagged_windows(b"not json", 1).is_empty());
+        assert!(untagged_windows(b"[]", 1).is_empty());
     }
 }

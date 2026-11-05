@@ -180,4 +180,226 @@ mod tests {
         assert_eq!(clock(Duration::from_secs(724)), "12:04");
         assert_eq!(clock(Duration::from_secs(3723)), "1:02:03");
     }
+
+    // ------------------------------------------------------------------
+    // A simulated clock: advances one second per tick, like the app does,
+    // and records the minute (since the start) each reminder fired at.
+
+    struct Sim {
+        s: Scheduler,
+        start: SystemTime,
+        now: SystemTime,
+    }
+
+    impl Sim {
+        fn new(cfg: &Config) -> Sim {
+            let start = SystemTime::UNIX_EPOCH + Duration::from_secs(2_000_000);
+            let mut s = Scheduler::default();
+            s.restart_all(cfg, start);
+            s.tick(cfg, start);
+            Sim {
+                s,
+                start,
+                now: start,
+            }
+        }
+
+        fn minutes(&self) -> u64 {
+            self.now.duration_since(self.start).unwrap().as_secs() / 60
+        }
+
+        fn run(&mut self, cfg: &Config, minutes: u64) -> Vec<(u64, u32)> {
+            let mut fired = Vec::new();
+            for _ in 0..minutes * 60 {
+                self.now += Duration::from_secs(1);
+                for id in self.s.tick(cfg, self.now) {
+                    fired.push((self.minutes(), id));
+                }
+            }
+            fired
+        }
+
+        fn restart(&mut self, cfg: &Config, id: u32) {
+            let r = cfg.reminders.iter().find(|r| r.id == id).unwrap();
+            self.s.restart(cfg, r, self.now);
+        }
+    }
+
+    fn one(id: u32, minutes: u32, enabled: bool) -> Reminder {
+        Reminder::preset(id, "water", minutes, enabled)
+    }
+
+    fn config(reminders: Vec<Reminder>) -> Config {
+        Config {
+            enabled: true,
+            reminders,
+        }
+    }
+
+    #[test]
+    fn never_fires_early() {
+        let cfg = config(vec![one(1, 20, true)]);
+        let mut sim = Sim::new(&cfg);
+        // One second short of 20 minutes: nothing yet.
+        for _ in 0..(20 * 60 - 1) {
+            sim.now += Duration::from_secs(1);
+            assert!(sim.s.tick(&cfg, sim.now).is_empty());
+        }
+        sim.now += Duration::from_secs(1);
+        assert_eq!(sim.s.tick(&cfg, sim.now), vec![1]);
+    }
+
+    #[test]
+    fn a_whole_day_has_the_right_count() {
+        let cfg = config(vec![one(1, 20, true)]);
+        let mut sim = Sim::new(&cfg);
+        let fired = sim.run(&cfg, 8 * 60);
+        assert_eq!(fired.len(), 24, "8 hours at 20 minutes is 24 reminders");
+        assert!(fired.iter().all(|(m, _)| m % 20 == 0));
+    }
+
+    #[test]
+    fn reminders_keep_their_own_intervals() {
+        let cfg = config(vec![one(1, 10, true), one(2, 25, true)]);
+        let mut sim = Sim::new(&cfg);
+        let fired = sim.run(&cfg, 60);
+        let at = |id| {
+            fired
+                .iter()
+                .filter(|f| f.1 == id)
+                .map(|f| f.0)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(at(1), vec![10, 20, 30, 40, 50, 60]);
+        assert_eq!(at(2), vec![25, 50]);
+    }
+
+    #[test]
+    fn a_disabled_reminder_stays_silent() {
+        let cfg = config(vec![one(1, 1, false)]);
+        let mut sim = Sim::new(&cfg);
+        assert!(sim.run(&cfg, 30).is_empty());
+        assert_eq!(sim.s.remaining(1, sim.now), None);
+    }
+
+    #[test]
+    fn changing_the_minutes_starts_a_new_interval_now() {
+        let mut cfg = config(vec![one(1, 20, true)]);
+        let mut sim = Sim::new(&cfg);
+        assert!(sim.run(&cfg, 15).is_empty());
+        cfg.reminders[0].minutes = 10;
+        sim.restart(&cfg, 1);
+        // Counted from minute 15, not from the start.
+        assert_eq!(sim.run(&cfg, 30), vec![(25, 1), (35, 1), (45, 1)]);
+    }
+
+    #[test]
+    fn turning_a_reminder_on_counts_from_that_moment() {
+        let mut cfg = config(vec![one(1, 10, false)]);
+        let mut sim = Sim::new(&cfg);
+        assert!(sim.run(&cfg, 7).is_empty());
+        cfg.reminders[0].enabled = true;
+        sim.restart(&cfg, 1);
+        assert_eq!(sim.run(&cfg, 20), vec![(17, 1), (27, 1)]);
+    }
+
+    #[test]
+    fn turning_a_reminder_off_stops_it() {
+        let mut cfg = config(vec![one(1, 10, true)]);
+        let mut sim = Sim::new(&cfg);
+        assert_eq!(sim.run(&cfg, 10), vec![(10, 1)]);
+        cfg.reminders[0].enabled = false;
+        sim.restart(&cfg, 1);
+        assert!(sim.run(&cfg, 60).is_empty());
+    }
+
+    #[test]
+    fn pausing_everything_and_resuming_restarts_every_clock() {
+        let mut cfg = config(vec![one(1, 10, true), one(2, 30, true)]);
+        let mut sim = Sim::new(&cfg);
+        assert_eq!(sim.run(&cfg, 12), vec![(10, 1)]);
+        cfg.enabled = false;
+        sim.s.restart_all(&cfg, sim.now);
+        assert!(sim.run(&cfg, 60).is_empty());
+        assert_eq!(sim.s.next(&cfg, sim.now), None);
+        cfg.enabled = true;
+        sim.s.restart_all(&cfg, sim.now);
+        // Back on at minute 72: both clocks start over from there.
+        assert_eq!(
+            sim.run(&cfg, 30),
+            vec![(82, 1), (92, 1), (102, 1), (102, 2)]
+        );
+    }
+
+    #[test]
+    fn a_deleted_reminder_stops() {
+        let mut cfg = config(vec![one(1, 5, true), one(2, 7, true)]);
+        let mut sim = Sim::new(&cfg);
+        sim.run(&cfg, 6);
+        cfg.reminders.retain(|r| r.id != 1);
+        sim.s.remove(1);
+        let fired = sim.run(&cfg, 30);
+        assert!(fired.iter().all(|(_, id)| *id == 2));
+        assert_eq!(sim.s.remaining(1, sim.now), None);
+    }
+
+    #[test]
+    fn a_new_reminder_gets_its_clock_on_the_next_tick() {
+        let mut cfg = config(vec![]);
+        let mut sim = Sim::new(&cfg);
+        sim.run(&cfg, 3);
+        // Added without an explicit restart: the tick schedules it.
+        cfg.reminders.push(one(9, 4, true));
+        assert_eq!(sim.run(&cfg, 10), vec![(7, 9), (11, 9)]);
+    }
+
+    #[test]
+    fn snooze_replaces_the_next_fire_then_the_interval_resumes() {
+        let cfg = config(vec![one(1, 20, true)]);
+        let mut sim = Sim::new(&cfg);
+        assert_eq!(sim.run(&cfg, 20), vec![(20, 1)]);
+        sim.s.snooze(1, Duration::from_secs(5 * 60), sim.now);
+        assert_eq!(sim.run(&cfg, 30), vec![(25, 1), (45, 1)]);
+    }
+
+    #[test]
+    fn snoozing_a_stopped_reminder_does_nothing() {
+        let cfg = config(vec![one(1, 20, false)]);
+        let mut sim = Sim::new(&cfg);
+        sim.s.snooze(1, Duration::from_secs(60), sim.now);
+        assert!(sim.run(&cfg, 30).is_empty());
+    }
+
+    #[test]
+    fn a_clock_going_backwards_restarts_quietly() {
+        let cfg = config(vec![one(1, 10, true)]);
+        let mut sim = Sim::new(&cfg);
+        sim.run(&cfg, 9);
+        sim.now -= Duration::from_secs(3600);
+        assert!(sim.s.tick(&cfg, sim.now).is_empty());
+        assert_eq!(sim.s.remaining(1, sim.now), Some(Duration::from_secs(600)));
+    }
+
+    #[test]
+    fn short_hiccups_are_not_sleep() {
+        // A busy machine can skip a few ticks; that's not a suspend.
+        let cfg = config(vec![one(1, 1, true)]);
+        let mut sim = Sim::new(&cfg);
+        for _ in 0..2 {
+            sim.now += Duration::from_secs(25);
+            assert!(sim.s.tick(&cfg, sim.now).is_empty());
+        }
+        sim.now += Duration::from_secs(25);
+        assert_eq!(sim.s.tick(&cfg, sim.now), vec![1]);
+    }
+
+    #[test]
+    fn next_is_the_soonest_running_reminder() {
+        let cfg = config(vec![one(1, 30, true), one(2, 5, true), one(3, 1, false)]);
+        let sim = Sim::new(&cfg);
+        assert_eq!(
+            sim.s.next(&cfg, sim.now),
+            Some((2, Duration::from_secs(300)))
+        );
+    }
 }

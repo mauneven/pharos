@@ -2,11 +2,11 @@
   <!-- Pharos on the 24 grid, in the square-stroke style of Omarchy's marks:
        a lantern's light with two beams leaving through the open sides of
        its frame. The tray shows this same icon. A static file can't read the
-       live palette, so it uses Tokyo Night's background and amber. -->
+       live palette, so it uses Tokyo Night's background with a white mark. -->
   <rect width="24" height="24" fill="#1a1b26"/>
-  <g fill="none" stroke="#e0af68" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+  <g fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
     <path d="M3 7V3h18v4M3 17v4h18v-4"/>
-    <path d="M10 10h4v4h-4z" fill="#e0af68"/>
+    <path d="M10 10h4v4h-4z" fill="#ffffff"/>
     <path d="M3 12h4M17 12h4"/>
   </g>
 </svg>

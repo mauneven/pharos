@@ -5,12 +5,15 @@
 
 mod app;
 mod autostart;
+mod cli;
 mod config;
 mod hypr;
 mod i18n;
 mod notify;
 mod paths;
 mod scheduler;
+#[cfg(test)]
+mod testutil;
 mod theme;
 mod tray;
 
@@ -19,61 +22,38 @@ use gtk::{gio, glib};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const HELP: &str = "\
-Pharos — break reminders for Omarchy
-
-Usage: pharos [option]
-
-  (none)              Open the window (starts Pharos if it isn't running)
-  --background        Start without opening the window
-  --toggle            Show or hide the window
-  --snooze <id>       Push a reminder's next notification 5 minutes out
-  --autostart on|off  Start Pharos at login, or stop doing so
-  -V, --version       Print the version
-  -h, --help          Print this help
-
-Every reminder fires each N minutes, then its clock starts over.
-Reminders live in ~/.config/pharos/config.toml.";
-
 fn main() -> glib::ExitCode {
     let args: Vec<String> = std::env::args().collect();
 
-    // Commands that don't need the running instance.
-    match args.get(1).map(String::as_str) {
-        Some("-h" | "--help") => {
-            println!("{HELP}");
+    // Commands that don't need the running instance run here; the rest are
+    // checked here so mistakes print in your terminal, then forwarded.
+    match cli::parse(&args[1..]) {
+        Err(err) => {
+            eprintln!("pharos: {err}\n\n{}", cli::HELP);
+            return glib::ExitCode::FAILURE;
+        }
+        Ok(cli::Command::Help) => {
+            println!("{}", cli::HELP);
             return glib::ExitCode::SUCCESS;
         }
-        Some("-V" | "--version") => {
+        Ok(cli::Command::Version) => {
             println!("pharos {}", env!("CARGO_PKG_VERSION"));
             return glib::ExitCode::SUCCESS;
         }
-        Some("--autostart") => {
-            return match args.get(2).map(String::as_str) {
-                Some(v @ ("on" | "off")) => match autostart::set(v == "on") {
-                    Ok(()) => glib::ExitCode::SUCCESS,
-                    Err(err) => {
-                        eprintln!("pharos: {err}");
-                        glib::ExitCode::FAILURE
-                    }
-                },
-                _ => {
-                    println!("{}", if autostart::enabled() { "on" } else { "off" });
-                    glib::ExitCode::SUCCESS
+        Ok(cli::Command::Autostart(None)) => {
+            println!("{}", if autostart::enabled() { "on" } else { "off" });
+            return glib::ExitCode::SUCCESS;
+        }
+        Ok(cli::Command::Autostart(Some(on))) => {
+            return match autostart::set(on) {
+                Ok(()) => glib::ExitCode::SUCCESS,
+                Err(err) => {
+                    eprintln!("pharos: {err}");
+                    glib::ExitCode::FAILURE
                 }
             };
         }
-        None => {}
-        Some("--background" | "--toggle" | "--quit") if args.len() == 2 => {}
-        Some("--snooze") if args.len() == 3 && args[2].parse::<u32>().is_ok() => {}
-        Some("--snooze") => {
-            eprintln!("pharos: --snooze needs a reminder id");
-            return glib::ExitCode::FAILURE;
-        }
-        Some(other) => {
-            eprintln!("pharos: unknown option {other}\n\n{HELP}");
-            return glib::ExitCode::FAILURE;
-        }
+        Ok(_) => {}
     }
 
     let app = gtk::Application::builder()
@@ -110,20 +90,16 @@ fn main() -> glib::ExitCode {
             .skip(1)
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
-        match argv.first().map(String::as_str) {
-            None => b.present(),
-            Some("--background") => {}
-            Some("--toggle") => b.toggle_window(),
-            Some("--quit") => {
+        match cli::parse(&argv) {
+            Ok(cli::Command::Open) => b.present(),
+            Ok(cli::Command::Background) => {}
+            Ok(cli::Command::Toggle) => b.toggle_window(),
+            Ok(cli::Command::Quit) => {
                 b.flush();
                 app.quit();
             }
-            Some("--snooze") => {
-                if let Some(id) = argv.get(1).and_then(|s| s.parse().ok()) {
-                    b.snooze(id);
-                }
-            }
-            Some(_) => return glib::ExitCode::FAILURE,
+            Ok(cli::Command::Snooze(id)) => b.snooze(id),
+            _ => return glib::ExitCode::FAILURE,
         }
         glib::ExitCode::SUCCESS
     });

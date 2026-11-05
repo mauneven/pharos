@@ -122,6 +122,18 @@ theme's `shell.toml`, or in `~/.config/omarchy/shell.toml` for every theme:
 background-alpha = 0.85
 ```
 
+## Tests
+
+```sh
+cargo test                 # unit tests and the command line, in a second
+cargo test -- --ignored    # end to end: starts Pharos with a 1-minute
+                           # reminder and waits for the notification
+```
+
+The unit tests cover the interval clock (every N minutes, then it starts
+over; pausing, snoozing, sleep), the config file, the language rules for
+built-in and renamed reminders, all 50 languages, the theme and the tray menu.
+
 ## Translations
 
 Strings live in [`i18n/`](i18n), one TOML file per Omarchy language code.

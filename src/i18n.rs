@@ -92,9 +92,19 @@ pub fn reload() -> bool {
     true
 }
 
+/// Tests pin a language without touching Omarchy's file. Use
+/// `testutil::language`, which also serializes the tests that do this.
+#[cfg(test)]
+pub fn set_for_test(code: &str) {
+    let mut slot = current().write().unwrap_or_else(|e| e.into_inner());
+    *slot = Some(parse(resolve(code)));
+}
+
 pub fn code() -> String {
     let slot = current().read().unwrap_or_else(|e| e.into_inner());
-    slot.as_ref().map(|c| c.code.clone()).unwrap_or_else(|| "en".into())
+    slot.as_ref()
+        .map(|c| c.code.clone())
+        .unwrap_or_else(|| "en".into())
 }
 
 pub fn rtl() -> bool {
@@ -214,5 +224,95 @@ mod tests {
         assert_eq!(resolve("zh-TW"), "zh-TW");
         assert_eq!(resolve(""), "en");
         assert_eq!(resolve("xx"), "en");
+    }
+
+    use crate::testutil::language;
+
+    #[test]
+    fn substitutes_placeholders() {
+        let _l = language("en");
+        assert_eq!(trf("minutes", &[("n", "20")]), "20 min");
+        assert_eq!(
+            trf("next", &[("name", "Drink water"), ("time", "12:04")]),
+            "Next: Drink water in 12:04"
+        );
+        let _ = _l;
+    }
+
+    #[test]
+    fn spanish_matches_the_original_app() {
+        let _l = language("es-MX");
+        let names: Vec<String> = PRESETS
+            .iter()
+            .map(|(p, ..)| preset_name(p).unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "Tomar agua",
+                "Estira tus manos",
+                "Estira tus piernas",
+                "Relaja tus ojos",
+                "Siéntate bien"
+            ]
+        );
+        assert_eq!(tr("tray_open"), "Abrir");
+        assert_eq!(tr("tray_turn_off"), "Desactivar");
+        assert_eq!(tr("tray_quit"), "Salir");
+    }
+
+    #[test]
+    fn every_language_translates_the_reminders() {
+        // Spelled the same as English and correct: Dutch "Drink water".
+        const SAME_AS_ENGLISH: &[(&str, &str)] = &[("nl", "preset_water")];
+        let en = parse("en");
+        for (code, _) in CATALOGS.iter().filter(|(c, _)| *c != "en") {
+            let cat = parse(code);
+            for (preset, ..) in PRESETS {
+                let key = format!("preset_{preset}");
+                if SAME_AS_ENGLISH.contains(&(*code, key.as_str())) {
+                    continue;
+                }
+                assert_ne!(
+                    cat.strings[&key], en.strings[&key],
+                    "{code}: {key} is still English"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn right_to_left_languages() {
+        for (code, rtl_expected) in [
+            ("ar", true),
+            ("fa", true),
+            ("he", true),
+            ("ur", true),
+            ("en", false),
+            ("es-MX", false),
+            ("ja", false),
+        ] {
+            let _l = language(code);
+            assert_eq!(rtl(), rtl_expected, "{code}");
+        }
+    }
+
+    #[test]
+    fn unknown_keys_and_presets() {
+        let _l = language("en");
+        assert_eq!(tr("no_such_key"), "no_such_key");
+        assert_eq!(preset_name("no_such_preset"), None);
+        assert_eq!(preset_name(NEW_PRESET).as_deref(), Some("New reminder"));
+    }
+
+    #[test]
+    fn every_catalog_is_valid_toml() {
+        for (code, raw) in CATALOGS {
+            assert!(
+                raw.parse::<toml::Table>().is_ok(),
+                "{code}.toml does not parse"
+            );
+        }
+        assert_eq!(CATALOGS.len(), 50);
     }
 }

@@ -233,7 +233,10 @@ impl Pharos {
     }
 
     fn watch_files(self: &Rc<Self>) {
-        let dirs = [paths::omarchy_current(), paths::omarchy_current().join("theme")];
+        let dirs = [
+            paths::omarchy_current(),
+            paths::omarchy_current().join("theme"),
+        ];
         let files = [
             paths::omarchy_user_shell_toml(),
             paths::fontconfig_file(),
@@ -500,8 +503,7 @@ impl Pharos {
         } else {
             ui.edit_button.remove_css_class("editing");
         }
-        ui.master
-            .set_tooltip_text(Some(&i18n::tr("master")));
+        ui.master.set_tooltip_text(Some(&i18n::tr("master")));
         ui.add_label
             .set_text(&format!("{ICON_ADD}  {}", i18n::tr("new_reminder")));
         ui.autostart.set_label(Some(&i18n::tr("start_at_login")));
@@ -739,7 +741,10 @@ impl Pharos {
                 .find(|r| r.id == id)
                 .map(Reminder::display_name)
                 .unwrap_or_default();
-            i18n::trf("next", &[("name", &name), ("time", &scheduler::clock(left))])
+            i18n::trf(
+                "next",
+                &[("name", &name), ("time", &scheduler::clock(left))],
+            )
         } else {
             i18n::tr("nothing_scheduled")
         };
@@ -857,7 +862,9 @@ impl Pharos {
     }
 
     fn focus_name(&self) {
-        let entry = self.row_widget(self.cursor.get(), |r| r.entry.clone()).flatten();
+        let entry = self
+            .row_widget(self.cursor.get(), |r| r.entry.clone())
+            .flatten();
         if let Some(e) = entry {
             e.grab_focus();
             e.select_region(0, -1);
