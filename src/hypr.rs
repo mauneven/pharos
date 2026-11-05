@@ -1,4 +1,4 @@
-//! Opts Beacon's window in to Omarchy's window transparency, the way Flea
+//! Opts Pharos's window in to Omarchy's window transparency, the way Flea
 //! does: the window gets Hyprland's `transparent` tag, and Omarchy's own rule
 //! for that tag applies the standard see-through look. That follows the
 //! user's Window Transparency choice (Super+Backspace toggles it per window):

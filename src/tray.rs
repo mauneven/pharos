@@ -1,9 +1,7 @@
 //! The tray icon in the Omarchy bar (StatusNotifierItem).
 //!
 //! Left click opens the window. Right click: Open, Turn on / Turn off, Quit.
-//! The icon is a `-symbolic` theme icon, which the Omarchy bar tints with
-//! its own text color, so it matches every theme. A paused Beacon shows the
-//! light without its signal bars.
+//! The icon is the app icon itself, the lighthouse.
 //!
 //! ksni runs the D-Bus side on its own thread; menu clicks come back to the
 //! GTK main loop through a channel as `Action`s.
@@ -51,11 +49,11 @@ impl Item {
 
 impl ksni::Tray for Item {
     fn id(&self) -> String {
-        "beacon".into()
+        "pharos".into()
     }
 
     fn title(&self) -> String {
-        "Beacon".into()
+        "Pharos".into()
     }
 
     fn category(&self) -> ksni::Category {
@@ -63,16 +61,12 @@ impl ksni::Tray for Item {
     }
 
     fn icon_name(&self) -> String {
-        if self.enabled {
-            format!("{}-symbolic", paths::APP_ID)
-        } else {
-            format!("{}-paused-symbolic", paths::APP_ID)
-        }
+        paths::APP_ID.into()
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {
         ksni::ToolTip {
-            title: "Beacon".into(),
+            title: "Pharos".into(),
             ..Default::default()
         }
     }
@@ -116,7 +110,7 @@ pub struct Tray {
 }
 
 impl Tray {
-    /// Registers the tray icon. Returns None (and Beacon runs without one)
+    /// Registers the tray icon. Returns None (and Pharos runs without one)
     /// when there's no session bus.
     pub fn spawn(enabled: bool, tx: async_channel::Sender<Action>) -> Option<Tray> {
         let item = Item {
@@ -124,12 +118,12 @@ impl Tray {
             labels: Labels::current(),
             tx,
         };
-        // The bar may start after Beacon at login; register anyway and let
+        // The bar may start after Pharos at login; register anyway and let
         // the watcher pick the icon up when it appears.
         match item.assume_sni_available(true).spawn() {
             Ok(handle) => Some(Tray { handle }),
             Err(err) => {
-                eprintln!("beacon: no tray icon: {err}");
+                eprintln!("pharos: no tray icon: {err}");
                 None
             }
         }

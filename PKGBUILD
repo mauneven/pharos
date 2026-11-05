@@ -1,10 +1,10 @@
 # Maintainer: mauneven <mauneven@gmail.com>
-pkgname=beacon
-pkgver=0.1.0
+pkgname=pharos
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="Interval break reminders, built for Omarchy"
 arch=('x86_64' 'aarch64')
-url="https://github.com/mauneven/beacon"
+url="https://github.com/mauneven/pharos"
 license=('MIT')
 depends=('gtk4' 'libnotify')
 optdepends=('omarchy: themed notifications, live theme and language')

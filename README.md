@@ -1,22 +1,22 @@
 <img src="docs/icon.png" width="64" alt="">
 
-# Beacon
+# Pharos
 
 Gentle break reminders, built for [Omarchy](https://omarchy.org).
 
 <p align="center">
-  <img src="docs/beacon.png" width="390" alt="Beacon in the Vantablack theme, in Spanish">
-  <img src="docs/editing.png" width="390" alt="Beacon's edit view in the Tokyo Night theme">
+  <img src="docs/pharos.png" width="390" alt="Pharos in the Vantablack theme, in Spanish">
+  <img src="docs/editing.png" width="390" alt="Pharos's edit view in the Tokyo Night theme">
 </p>
 
-Beacon does one thing: **every N minutes it sends you a notification, then the
+Pharos does one thing: **every N minutes it sends you a notification, then the
 clock starts over.** Set *Drink water* to 20 minutes and you're reminded every
 20 minutes, all day.
 
 - **One window.** Each reminder has a checkbox, a slider from 1 to 120 minutes
   and a live countdown. The switch at the top pauses everything.
 - **The pencil is the settings.** Tap it to rename or delete reminders, add new
-  ones, and choose whether Beacon starts at login.
+  ones, and choose whether Pharos starts at login.
 - **Native to Omarchy.**
   - It reads the current theme's `colors.toml` and `shell.toml` (control states,
     font size, spacing) plus Hyprland's corner rounding and the Omarchy font,
@@ -26,17 +26,16 @@ clock starts over.** Set *Drink water* to 20 minutes and you're reminded every
 - **Every Omarchy language.** All 50 languages, following
   `~/.config/omarchy/language` live, with right-to-left layout for Arabic,
   Persian, Hebrew and Urdu.
-- **A tray icon in the Omarchy bar.** Left click opens Beacon; right click has
-  Open, Turn on / Turn off and Quit. It takes the bar's color in every theme,
-  and loses its signal bars while reminders are paused.
+- **A tray icon in the Omarchy bar.** Left click opens Pharos; right click has
+  Open, Turn on / Turn off and Quit.
 - **Small and quiet.** Rust and GTK4, one process. If the laptop sleeps, the
   clocks restart quietly instead of firing a backlog.
 
 ## Install
 
 ```sh
-git clone https://github.com/mauneven/beacon
-cd beacon
+git clone https://github.com/mauneven/pharos
+cd pharos
 makepkg -si
 ```
 
@@ -48,13 +47,13 @@ make install-user      # ~/.local/bin and ~/.local/share
 
 or system-wide with `make build && sudo make install`.
 
-Then open **Beacon** from the launcher. It opens as a small floating card in
-the middle of the screen. The first run sets Beacon to start at
+Then open **Pharos** from the launcher. It tiles like any window, with its
+content centered in whatever space it gets. The first run sets Pharos to start at
 login (there's a checkbox to undo that in the pencil view).
 
-### A key for Beacon (optional)
+### A key for Pharos (optional)
 
-To open or hide Beacon with a key, bind `beacon --toggle` in
+To open or hide Pharos with a key, bind `pharos --toggle` in
 `~/.config/hypr/bindings.lua`.
 
 ## Keyboard
@@ -77,16 +76,16 @@ running in the background.
 ## Command line
 
 ```text
-beacon                 open the window (starts Beacon if needed)
-beacon --background    start without a window (used at login)
-beacon --toggle        show or hide the window
-beacon --snooze <id>   push a reminder 5 minutes out
-beacon --autostart on|off
+pharos                 open the window (starts Pharos if needed)
+pharos --background    start without a window (used at login)
+pharos --toggle        show or hide the window
+pharos --snooze <id>   push a reminder 5 minutes out
+pharos --autostart on|off
 ```
 
 ## Configuration
 
-Reminders live in `~/.config/beacon/config.toml`:
+Reminders live in `~/.config/pharos/config.toml`:
 
 ```toml
 enabled = true
@@ -110,16 +109,16 @@ ones you renamed keep your text. Changing the minutes doesn't count as a rename.
 
 ### Transparency
 
-Like Flea, Beacon opts its window in to Omarchy's window transparency, so it
+Like Flea, Pharos opts its window in to Omarchy's window transparency, so it
 follows **Window Transparency** in the Omarchy menu: see-through by default,
 solid when *opaque*, frosted blur when *glassy*. `Super+Backspace` toggles it
 for the window.
 
-For a see-through background on top of that, give Beacon its own alpha in a
+For a see-through background on top of that, give Pharos its own alpha in a
 theme's `shell.toml`, or in `~/.config/omarchy/shell.toml` for every theme:
 
 ```toml
-[beacon]
+[pharos]
 background-alpha = 0.85
 ```
 

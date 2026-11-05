@@ -1,7 +1,7 @@
-//! The whole job of Beacon: each enabled reminder has a clock. When it
+//! The whole job of Pharos: each enabled reminder has a clock. When it
 //! reaches `minutes`, a notification goes out and the clock starts over.
 //!
-//! Changing a reminder's minutes, turning it on, or turning Beacon on starts
+//! Changing a reminder's minutes, turning it on, or turning Pharos on starts
 //! that clock from zero. If the machine slept (the tick saw a long gap), the
 //! clocks restart quietly instead of firing a backlog of notifications.
 

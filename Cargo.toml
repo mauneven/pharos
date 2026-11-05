@@ -1,11 +1,11 @@
 [package]
-name = "beacon"
-version = "0.1.0"
+name = "pharos"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Gentle break reminders, built for Omarchy"
 license = "MIT"
-repository = "https://github.com/mauneven/beacon"
+repository = "https://github.com/mauneven/pharos"
 readme = "README.md"
 keywords = ["omarchy", "reminders", "gtk4", "wayland", "health"]
 categories = ["gui"]

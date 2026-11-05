@@ -1,4 +1,4 @@
-# Beacon UI strings. Keep every {placeholder} exactly as written.
+# Pharos UI strings. Keep every {placeholder} exactly as written.
 # Keys in hints (e, h, l, n, x, r, esc, ctrl+q, space) are keyboard keys:
 # translate only the words describing what they do.
 edit = "Edit reminders"

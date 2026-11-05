@@ -1,6 +1,6 @@
-//! `~/.config/beacon/config.toml`: the master switch and the reminder list.
+//! `~/.config/pharos/config.toml`: the master switch and the reminder list.
 //!
-//! A reminder Beacon created (`preset = "water"`) has no stored name, so it
+//! A reminder Pharos created (`preset = "water"`) has no stored name, so it
 //! shows in whatever language Omarchy uses. Once the user renames it, the
 //! text is stored in `name` and never touched again. Minutes and the on/off
 //! state are independent of the name.
@@ -105,7 +105,7 @@ impl Config {
                     let backup = path.with_extension("toml.broken");
                     let _ = std::fs::rename(&path, &backup);
                     eprintln!(
-                        "beacon: {} is invalid ({err}); moved it to {} and started fresh",
+                        "pharos: {} is invalid ({err}); moved it to {} and started fresh",
                         path.display(),
                         backup.display()
                     );
@@ -117,7 +117,7 @@ impl Config {
             Err(_) => {
                 let cfg = Config::default();
                 if let Err(err) = cfg.save() {
-                    eprintln!("beacon: could not write {}: {err}", path.display());
+                    eprintln!("pharos: could not write {}: {err}", path.display());
                 }
                 Loaded::FirstRun(cfg)
             }
@@ -148,7 +148,7 @@ impl Config {
         {
             let mut f = std::fs::File::create(&tmp)?;
             f.write_all(
-                b"# Beacon reminders: every `minutes`, a notification, then the clock restarts.\n\
+                b"# Pharos reminders: every `minutes`, a notification, then the clock restarts.\n\
                   # `preset` reminders follow Omarchy's language until you give them a `name`.\n\n",
             )?;
             f.write_all(body.as_bytes())?;

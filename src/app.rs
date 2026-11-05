@@ -1,4 +1,4 @@
-//! The Beacon window and the glue between it, the config, the scheduler and
+//! The Pharos window and the glue between it, the config, the scheduler and
 //! the live Omarchy theme and language.
 
 use gtk::prelude::*;
@@ -14,18 +14,17 @@ use crate::tray::{self, Tray};
 use crate::{autostart, i18n, notify, paths};
 
 const SNOOZE: Duration = Duration::from_secs(5 * 60);
-/// Width of the content column. The window is this column plus padding, and
-/// never resizes by hand, so Hyprland floats it centered like a panel.
-const COLUMN: f64 = 440.0;
-/// Tallest the reminder list grows before it scrolls.
-const MAX_LIST_HEIGHT: f64 = 520.0;
+/// Widest the content column grows; past that it stays centered.
+const COLUMN: f64 = 520.0;
+/// Room the header and hint take, kept free when sizing the list.
+const CHROME_HEIGHT: f64 = 150.0;
 
 const ICON_EDIT: &str = "\u{f03eb}"; // nf-md-pencil
 const ICON_DONE: &str = "\u{f012c}"; // nf-md-check
 const ICON_DELETE: &str = "\u{f01b4}"; // nf-md-delete
 const ICON_ADD: &str = "\u{f0415}"; // nf-md-plus
 
-pub struct Beacon {
+pub struct Pharos {
     app: gtk::Application,
     config: RefCell<Config>,
     scheduler: RefCell<Scheduler>,
@@ -68,7 +67,7 @@ struct Row {
     entry: Option<gtk::Entry>,
 }
 
-impl Beacon {
+impl Pharos {
     pub fn new(app: &gtk::Application, config: Config) -> Rc<Self> {
         i18n::reload();
         let provider = gtk::CssProvider::new();
@@ -83,7 +82,7 @@ impl Beacon {
         let mut scheduler = Scheduler::default();
         scheduler.restart_all(&config, SystemTime::now());
 
-        let this = Rc::new(Beacon {
+        let this = Rc::new(Pharos {
             app: app.clone(),
             config: RefCell::new(config),
             scheduler: RefCell::new(scheduler),
@@ -188,7 +187,7 @@ impl Beacon {
 
     fn save_now(&self) {
         if let Err(err) = self.config.borrow().save() {
-            eprintln!("beacon: could not save config: {err}");
+            eprintln!("pharos: could not save config: {err}");
         }
     }
 
@@ -289,10 +288,10 @@ impl Beacon {
         if let Some(w) = window {
             w.present();
             self.apply_cursor(true);
-            if std::env::var_os("BEACON_SNAPSHOT_EDIT").is_some() {
+            if std::env::var_os("PHAROS_SNAPSHOT_EDIT").is_some() {
                 self.set_editing(true);
             }
-            if let Some(path) = std::env::var_os("BEACON_SNAPSHOT") {
+            if let Some(path) = std::env::var_os("PHAROS_SNAPSHOT") {
                 glib::timeout_add_local_once(Duration::from_millis(900), move || {
                     snapshot_to_png(&w, std::path::Path::new(&path));
                 });
@@ -315,18 +314,18 @@ impl Beacon {
         self.apply_direction();
         let window = gtk::ApplicationWindow::builder()
             .application(&self.app)
-            .title("Beacon")
-            .resizable(false)
+            .title("Pharos")
+            .default_width(480)
+            .default_height(640)
             .decorated(false)
             .hide_on_close(true)
             .icon_name(paths::APP_ID)
             .build();
-        window.add_css_class("beacon");
+        window.add_css_class("pharos");
 
-        // The column sits in the middle of the window both ways, so it stays
-        // centered even if a user rule tiles the window.
+        // The column sits in the middle of the window both ways, whatever
+        // size the tiling gives it.
         let root = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        root.set_halign(gtk::Align::Center);
         root.set_valign(gtk::Align::Center);
 
         // Header: title and status, master switch, pencil.
@@ -334,7 +333,7 @@ impl Beacon {
         let titles = gtk::Box::new(gtk::Orientation::Vertical, 2);
         titles.set_hexpand(true);
         titles.set_valign(gtk::Align::Center);
-        let title = gtk::Label::new(Some("Beacon"));
+        let title = gtk::Label::new(Some("Pharos"));
         title.add_css_class("app-title");
         title.set_xalign(0.0);
         let status = gtk::Label::new(None);
@@ -401,8 +400,20 @@ impl Beacon {
         add_button.connect_clicked(move |_| this.add_reminder());
         autostart.connect_toggled(|c| {
             if let Err(err) = autostart::set(c.is_active()) {
-                eprintln!("beacon: could not change autostart: {err}");
+                eprintln!("pharos: could not change autostart: {err}");
             }
+        });
+
+        // Follow the size Hyprland gives the window.
+        let this = self.clone();
+        let last = Cell::new((0, 0));
+        window.add_tick_callback(move |w, _| {
+            let size = (w.width(), w.height());
+            if size != last.get() {
+                last.set(size);
+                this.relayout();
+            }
+            glib::ControlFlow::Continue
         });
 
         // Every map is a new Hyprland window (hiding unmaps it), so tag on
@@ -436,18 +447,26 @@ impl Beacon {
         self.rebuild();
     }
 
-    /// Sizes the column and its padding from the theme's spacing scale, the
-    /// way the shell scales its panels.
+    /// Centers a column of at most COLUMN px in whatever size the window
+    /// has, and lets the list use the height that's left. Spacing follows
+    /// the theme's scale, the way the shell scales its panels.
     fn relayout(&self) {
         let ui = self.ui.borrow();
         let Some(ui) = ui.as_ref() else { return };
         let theme = self.theme.borrow();
         let pad = theme.padding();
         let scale = theme.gap(100.0) as f64 / 100.0;
-        ui.root
-            .set_size_request((COLUMN * scale).round() as i32 + 2 * pad, -1);
-        ui.scroller
-            .set_max_content_height((MAX_LIST_HEIGHT * scale).round() as i32);
+        let (width, height) = (ui.window.width() as f64, ui.window.height() as f64);
+        let column = COLUMN * scale + 2.0 * pad as f64;
+        if width > column {
+            ui.root.set_halign(gtk::Align::Center);
+            ui.root.set_size_request(column.round() as i32, -1);
+        } else {
+            ui.root.set_halign(gtk::Align::Fill);
+            ui.root.set_size_request(-1, -1);
+        }
+        let list = (height - CHROME_HEIGHT * scale).max(160.0 * scale);
+        ui.scroller.set_max_content_height(list.round() as i32);
         for (i, w) in ui.columns.iter().enumerate() {
             w.set_margin_start(pad);
             w.set_margin_end(pad);
@@ -951,7 +970,7 @@ fn minutes_label(n: u32) -> String {
     i18n::trf("minutes", &[("n", &n.to_string())])
 }
 
-/// Debug aid: `BEACON_SNAPSHOT=out.png beacon` renders the window to a PNG,
+/// Debug aid: `PHAROS_SNAPSHOT=out.png pharos` renders the window to a PNG,
 /// for screenshots without screen-capture permissions.
 fn snapshot_to_png(window: &gtk::ApplicationWindow, path: &std::path::Path) {
     let paintable = gtk::WidgetPaintable::new(Some(window));
@@ -962,6 +981,6 @@ fn snapshot_to_png(window: &gtk::ApplicationWindow, path: &std::path::Path) {
     };
     let texture = renderer.render_texture(&node, None);
     if let Err(err) = texture.save_to_png(path) {
-        eprintln!("beacon: snapshot failed: {err}");
+        eprintln!("pharos: snapshot failed: {err}");
     }
 }

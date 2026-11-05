@@ -20,7 +20,7 @@ pub fn set(on: bool) -> std::io::Result<()> {
     let exe = std::env::current_exe()
         .ok()
         .and_then(|p| p.to_str().map(str::to_owned))
-        .unwrap_or_else(|| "beacon".into());
+        .unwrap_or_else(|| "pharos".into());
     let exec = if exe.contains(char::is_whitespace) {
         format!("\"{exe}\"")
     } else {
@@ -31,7 +31,7 @@ pub fn set(on: bool) -> std::io::Result<()> {
         format!(
             "[Desktop Entry]\n\
              Type=Application\n\
-             Name=Beacon\n\
+             Name=Pharos\n\
              Comment=Break reminders\n\
              Exec={exec} --background\n\
              Icon={id}\n\

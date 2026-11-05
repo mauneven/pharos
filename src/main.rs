@@ -1,6 +1,6 @@
-//! Beacon: interval break reminders for Omarchy.
+//! Pharos: interval break reminders for Omarchy.
 //!
-//! One process runs per session. Launching `beacon` again shows its window;
+//! One process runs per session. Launching `pharos` again shows its window;
 //! `--snooze` and `--toggle` reach the running instance over D-Bus.
 
 mod app;
@@ -20,20 +20,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 const HELP: &str = "\
-Beacon — break reminders for Omarchy
+Pharos — break reminders for Omarchy
 
-Usage: beacon [option]
+Usage: pharos [option]
 
-  (none)              Open the window (starts Beacon if it isn't running)
+  (none)              Open the window (starts Pharos if it isn't running)
   --background        Start without opening the window
   --toggle            Show or hide the window
   --snooze <id>       Push a reminder's next notification 5 minutes out
-  --autostart on|off  Start Beacon at login, or stop doing so
+  --autostart on|off  Start Pharos at login, or stop doing so
   -V, --version       Print the version
   -h, --help          Print this help
 
 Every reminder fires each N minutes, then its clock starts over.
-Reminders live in ~/.config/beacon/config.toml.";
+Reminders live in ~/.config/pharos/config.toml.";
 
 fn main() -> glib::ExitCode {
     let args: Vec<String> = std::env::args().collect();
@@ -45,7 +45,7 @@ fn main() -> glib::ExitCode {
             return glib::ExitCode::SUCCESS;
         }
         Some("-V" | "--version") => {
-            println!("beacon {}", env!("CARGO_PKG_VERSION"));
+            println!("pharos {}", env!("CARGO_PKG_VERSION"));
             return glib::ExitCode::SUCCESS;
         }
         Some("--autostart") => {
@@ -53,7 +53,7 @@ fn main() -> glib::ExitCode {
                 Some(v @ ("on" | "off")) => match autostart::set(v == "on") {
                     Ok(()) => glib::ExitCode::SUCCESS,
                     Err(err) => {
-                        eprintln!("beacon: {err}");
+                        eprintln!("pharos: {err}");
                         glib::ExitCode::FAILURE
                     }
                 },
@@ -67,11 +67,11 @@ fn main() -> glib::ExitCode {
         Some("--background" | "--toggle" | "--quit") if args.len() == 2 => {}
         Some("--snooze") if args.len() == 3 && args[2].parse::<u32>().is_ok() => {}
         Some("--snooze") => {
-            eprintln!("beacon: --snooze needs a reminder id");
+            eprintln!("pharos: --snooze needs a reminder id");
             return glib::ExitCode::FAILURE;
         }
         Some(other) => {
-            eprintln!("beacon: unknown option {other}\n\n{HELP}");
+            eprintln!("pharos: unknown option {other}\n\n{HELP}");
             return glib::ExitCode::FAILURE;
         }
     }
@@ -81,25 +81,25 @@ fn main() -> glib::ExitCode {
         .flags(gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 
-    let beacon: Rc<RefCell<Option<Rc<app::Beacon>>>> = Rc::default();
+    let pharos: Rc<RefCell<Option<Rc<app::Pharos>>>> = Rc::default();
 
-    let slot = beacon.clone();
+    let slot = pharos.clone();
     app.connect_startup(move |app| {
         let config = match config::Config::load() {
             config::Loaded::FirstRun(cfg) => {
                 // A reminder app only works while it runs, so the first run
                 // turns on start-at-login. The pencil view can turn it off.
                 if let Err(err) = autostart::set(true) {
-                    eprintln!("beacon: could not enable autostart: {err}");
+                    eprintln!("pharos: could not enable autostart: {err}");
                 }
                 cfg
             }
             config::Loaded::Existing(cfg) => cfg,
         };
-        *slot.borrow_mut() = Some(app::Beacon::new(app, config));
+        *slot.borrow_mut() = Some(app::Pharos::new(app, config));
     });
 
-    let slot = beacon.clone();
+    let slot = pharos.clone();
     app.connect_command_line(move |app, cmd| {
         let Some(b) = slot.borrow().clone() else {
             return glib::ExitCode::FAILURE;
@@ -128,7 +128,7 @@ fn main() -> glib::ExitCode {
         glib::ExitCode::SUCCESS
     });
 
-    let slot = beacon.clone();
+    let slot = pharos.clone();
     app.connect_shutdown(move |_| {
         if let Some(b) = slot.borrow().as_ref() {
             b.flush();

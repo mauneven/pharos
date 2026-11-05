@@ -125,7 +125,7 @@ pub fn trf(key: &str, args: &[(&str, &str)]) -> String {
     out
 }
 
-/// The built-in reminders Beacon creates on first run, and the name a new
+/// The built-in reminders Pharos creates on first run, and the name a new
 /// reminder starts with. Their names are never stored until the user edits
 /// them, so they follow the language.
 pub const PRESETS: &[(&str, u32, bool)] = &[
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn hints_have_no_quit_key() {
-        // Omarchy closes windows with Super+W; Beacon keeps running.
+        // Omarchy closes windows with Super+W; Pharos keeps running.
         for (code, _) in CATALOGS {
             let cat = parse(code);
             for key in ["hint_normal", "hint_editing"] {

@@ -1,13 +1,13 @@
 [Desktop Entry]
 Type=Application
-Name=Beacon
+Name=Pharos
 GenericName=Break Reminders
 Comment=Interval reminders to drink water, stretch and rest your eyes
-Exec=beacon
-Icon=com.mauneven.beacon
+Exec=pharos
+Icon=com.mauneven.pharos
 Terminal=false
 Categories=Utility;GTK;
 Keywords=reminder;break;water;stretch;eyes;posture;health;recordatorio;
 StartupNotify=true
-StartupWMClass=com.mauneven.beacon
+StartupWMClass=com.mauneven.pharos
 SingleMainWindow=true

@@ -3,7 +3,7 @@
 //! Sources, in the same way the Omarchy shell reads them:
 //! - `current/theme/colors.toml` for the palette
 //! - `current/theme/shell.toml` for control states, spacing and font size
-//! - `~/.config/omarchy/shell.toml` `[beacon]` for user overrides
+//! - `~/.config/omarchy/shell.toml` `[pharos]` for user overrides
 //! - `hyprctl getoption decoration:rounding` for corner radius
 //! - fontconfig's monospace family, which is what `omarchy font set` changes
 
@@ -138,7 +138,7 @@ fn num(v: Option<&Value>) -> Option<f64> {
     }
 }
 
-/// A border width such as `1` or `"1 2"`; Beacon draws uniform borders, so
+/// A border width such as `1` or `"1 2"`; Pharos draws uniform borders, so
 /// the first value is used.
 fn width(v: Option<&Value>) -> Option<f64> {
     match v? {
@@ -220,9 +220,9 @@ impl Theme {
             .map(|s| resolve(s, foreground))
             .unwrap_or(foreground);
 
-        // [beacon] background-alpha: the user-wide file wins over the theme.
-        let window_alpha = num(get(&user_shell, "beacon", "background-alpha"))
-            .or_else(|| num(get(&shell, "beacon", "background-alpha")))
+        // [pharos] background-alpha: the user-wide file wins over the theme.
+        let window_alpha = num(get(&user_shell, "pharos", "background-alpha"))
+            .or_else(|| num(get(&shell, "pharos", "background-alpha")))
             .unwrap_or(1.0)
             .clamp(0.0, 1.0);
 
@@ -300,48 +300,48 @@ impl Theme {
   outline: none;
 }}
 
-window.beacon,
-window.beacon.background {{
+window.pharos,
+window.pharos.background {{
   background-color: {bg};
   color: {fg};
   font-family: "{family}", monospace;
   font-size: {body};
 }}
 
-window.beacon label {{ color: inherit; }}
+window.pharos label {{ color: inherit; }}
 
-.beacon .app-title {{
+.pharos .app-title {{
   font-size: {display};
   font-weight: 700;
   letter-spacing: -0.02em;
 }}
-.beacon .status {{ color: {muted}; font-size: {caption}; }}
-.beacon .muted {{ color: {muted}; }}
-.beacon .hint {{ color: {faint}; font-size: {caption}; }}
-.beacon .empty {{ color: {muted}; padding: {sp24} 0; }}
-.beacon .numeric {{ font-feature-settings: "tnum"; }}
-.beacon .paused {{ opacity: 0.5; }}
+.pharos .status {{ color: {muted}; font-size: {caption}; }}
+.pharos .muted {{ color: {muted}; }}
+.pharos .hint {{ color: {faint}; font-size: {caption}; }}
+.pharos .empty {{ color: {muted}; padding: {sp24} 0; }}
+.pharos .numeric {{ font-feature-settings: "tnum"; }}
+.pharos .paused {{ opacity: 0.5; }}
 
 /* rows */
-.beacon .reminder {{
+.pharos .reminder {{
   padding: {sp10} {sp12};
   border-radius: {r};
   border: {nbw} solid transparent;
   background-color: transparent;
   transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }}
-.beacon .reminder.cursor {{
+.pharos .reminder.cursor {{
   background-color: {h_fill};
   border-color: {h_border};
 }}
-.beacon .reminder .name {{ font-size: {subtitle}; }}
-.beacon .reminder .value {{ font-size: {body}; min-width: 4.5em; }}
-.beacon .reminder .countdown {{ color: {muted}; font-size: {caption}; }}
-.beacon .reminder.off .name,
-.beacon .reminder.off .value {{ color: {muted}; }}
+.pharos .reminder .name {{ font-size: {subtitle}; }}
+.pharos .reminder .value {{ font-size: {body}; min-width: 4.5em; }}
+.pharos .reminder .countdown {{ color: {muted}; font-size: {caption}; }}
+.pharos .reminder.off .name,
+.pharos .reminder.off .value {{ color: {muted}; }}
 
 /* buttons */
-.beacon button {{
+.pharos button {{
   min-height: {sp28};
   min-width: {sp28};
   padding: 0 {sp10};
@@ -351,24 +351,24 @@ window.beacon label {{ color: inherit; }}
   color: {fg};
   transition: background-color 100ms ease-out, border-color 100ms ease-out;
 }}
-.beacon button:hover {{ background: {h_fill}; border-color: {h_border}; }}
-.beacon button:focus-visible {{ background: {f_fill}; border: {fbw} solid {f_border}; }}
-.beacon button:active,
-.beacon button:checked {{ background: {pressed}; }}
-.beacon button.icon {{ padding: 0; font-size: {icon}; }}
-.beacon button.flat {{ background: transparent; border-color: transparent; }}
-.beacon button.flat:hover {{ background: {h_fill}; border-color: {h_border}; }}
-.beacon button.destructive:hover {{ color: {urgent}; border-color: {urgent}; }}
-.beacon button.add {{
+.pharos button:hover {{ background: {h_fill}; border-color: {h_border}; }}
+.pharos button:focus-visible {{ background: {f_fill}; border: {fbw} solid {f_border}; }}
+.pharos button:active,
+.pharos button:checked {{ background: {pressed}; }}
+.pharos button.icon {{ padding: 0; font-size: {icon}; }}
+.pharos button.flat {{ background: transparent; border-color: transparent; }}
+.pharos button.flat:hover {{ background: {h_fill}; border-color: {h_border}; }}
+.pharos button.destructive:hover {{ color: {urgent}; border-color: {urgent}; }}
+.pharos button.add {{
   min-height: {sp36};
   border-style: dashed;
   color: {muted};
 }}
-.beacon button.add:hover {{ color: {fg}; }}
-.beacon button.editing {{ background: {selected_fill}; border-color: {s_border}; }}
+.pharos button.add:hover {{ color: {fg}; }}
+.pharos button.editing {{ background: {selected_fill}; border-color: {s_border}; }}
 
 /* text entry */
-.beacon entry {{
+.pharos entry {{
   min-height: {sp28};
   padding: 0 {sp8};
   border-radius: {r};
@@ -378,13 +378,13 @@ window.beacon label {{ color: inherit; }}
   caret-color: {accent};
   font-size: {subtitle};
 }}
-.beacon entry:focus-within {{ background: {f_fill}; border: {fbw} solid {f_border}; }}
-.beacon entry placeholder {{ color: {faint}; }}
-.beacon entry selection,
-.beacon text selection {{ background-color: {selection}; color: {fg}; }}
+.pharos entry:focus-within {{ background: {f_fill}; border: {fbw} solid {f_border}; }}
+.pharos entry placeholder {{ color: {faint}; }}
+.pharos entry selection,
+.pharos text selection {{ background-color: {selection}; color: {fg}; }}
 
 /* master switch */
-.beacon switch {{
+.pharos switch {{
   min-width: {sp40};
   min-height: {sp22};
   padding: 2px;
@@ -394,11 +394,11 @@ window.beacon label {{ color: inherit; }}
   color: transparent;
   transition: background-color 120ms ease-out;
 }}
-.beacon switch image {{ opacity: 0; }}
-.beacon switch:hover {{ border-color: {h_border}; }}
-.beacon switch:focus-visible {{ border: {fbw} solid {f_border}; }}
-.beacon switch:checked {{ background: {accent}; border-color: {accent}; }}
-.beacon switch slider {{
+.pharos switch image {{ opacity: 0; }}
+.pharos switch:hover {{ border-color: {h_border}; }}
+.pharos switch:focus-visible {{ border: {fbw} solid {f_border}; }}
+.pharos switch:checked {{ background: {accent}; border-color: {accent}; }}
+.pharos switch slider {{
   min-width: {sp18};
   min-height: {sp18};
   margin: 0;
@@ -406,11 +406,11 @@ window.beacon label {{ color: inherit; }}
   border: none;
   background: {muted};
 }}
-.beacon switch:checked slider {{ background: {solid_bg}; }}
+.pharos switch:checked slider {{ background: {solid_bg}; }}
 
 /* checkbox */
-.beacon checkbutton {{ padding: 0; min-height: 0; }}
-.beacon checkbutton check {{
+.pharos checkbutton {{ padding: 0; min-height: 0; }}
+.pharos checkbutton check {{
   min-width: {check};
   min-height: {check};
   margin: 0;
@@ -420,19 +420,19 @@ window.beacon label {{ color: inherit; }}
   color: transparent;
   -gtk-icon-size: {check};
 }}
-.beacon checkbutton check:hover {{ border-color: {fg}; }}
-.beacon checkbutton check:checked {{
+.pharos checkbutton check:hover {{ border-color: {fg}; }}
+.pharos checkbutton check:checked {{
   background: {accent};
   border-color: {accent};
   color: {solid_bg};
 }}
-.beacon checkbutton:focus-visible check {{ border-color: {f_border}; }}
-.beacon checkbutton label {{ padding-left: {sp8}; }}
+.pharos checkbutton:focus-visible check {{ border-color: {f_border}; }}
+.pharos checkbutton label {{ padding-left: {sp8}; }}
 
 /* slider, after the shell's PanelSlider: thin track, foreground fill, a knob
    ringed in the background color; corners follow Hyprland's rounding */
-.beacon scale {{ padding: {sp8} {sp4}; margin: 0; }}
-.beacon scale trough {{
+.pharos scale {{ padding: {sp8} {sp4}; margin: 0; }}
+.pharos scale trough {{
   min-height: 4px;
   min-width: 0;
   margin: 0;
@@ -440,7 +440,7 @@ window.beacon label {{ color: inherit; }}
   border: none;
   background: {track};
 }}
-.beacon scale highlight {{
+.pharos scale highlight {{
   min-height: 4px;
   min-width: 0;
   margin: 0;
@@ -448,7 +448,7 @@ window.beacon label {{ color: inherit; }}
   border: none;
   background: {fg};
 }}
-.beacon scale slider {{
+.pharos scale slider {{
   min-width: {knob};
   min-height: {knob};
   margin: {knob_margin};
@@ -457,26 +457,26 @@ window.beacon label {{ color: inherit; }}
   background: {fg};
   transition: transform 110ms ease-out;
 }}
-.beacon scale slider:hover {{ transform: scale(1.12); }}
-.beacon scale:focus-visible slider {{ border-color: {accent}; }}
-.beacon scale marks {{ color: {faint}; margin-top: 2px; }}
-.beacon scale marks mark indicator {{
+.pharos scale slider:hover {{ transform: scale(1.12); }}
+.pharos scale:focus-visible slider {{ border-color: {accent}; }}
+.pharos scale marks {{ color: {faint}; margin-top: 2px; }}
+.pharos scale marks mark indicator {{
   min-width: 1px;
   min-height: 4px;
   background: {faint};
   color: {faint};
 }}
-.beacon .reminder.off scale highlight,
-.beacon .reminder.off scale slider {{ background: {muted}; }}
+.pharos .reminder.off scale highlight,
+.pharos .reminder.off scale slider {{ background: {muted}; }}
 
 /* scrollbars: square like Flea, following Hyprland's rounding */
-.beacon scrollbar {{
+.pharos scrollbar {{
   background: transparent;
   border: none;
   padding: 0;
   margin: 0;
 }}
-.beacon scrollbar slider {{
+.pharos scrollbar slider {{
   min-width: 4px;
   min-height: 4px;
   margin: 0;
@@ -485,16 +485,16 @@ window.beacon label {{ color: inherit; }}
   border: none;
   transition: background-color 100ms ease-out;
 }}
-.beacon scrollbar slider:hover {{ background: {muted}; }}
-.beacon scrollbar slider:active {{ background: {fg}; }}
-.beacon scrollbar.hovering slider {{ min-width: 6px; }}
-.beacon undershoot, .beacon overshoot {{ background: none; }}
+.pharos scrollbar slider:hover {{ background: {muted}; }}
+.pharos scrollbar slider:active {{ background: {fg}; }}
+.pharos scrollbar.hovering slider {{ min-width: 6px; }}
+.pharos undershoot, .pharos overshoot {{ background: none; }}
 
-separator.beacon-sep {{ background: {n_border}; min-height: 1px; }}
+separator.pharos-sep {{ background: {n_border}; min-height: 1px; }}
 
 /* entry context menu and tooltips */
 popover.background > contents,
-.beacon popover > contents {{
+.pharos popover > contents {{
   background: {solid_bg};
   color: {fg};
   border: 1px solid {tooltip_border};
@@ -507,7 +507,7 @@ tooltip.background, tooltip {{
   border: 1px solid {tooltip_border};
   border-radius: {r};
 }}
-.beacon .surface {{ background: {surface}; }}
+.pharos .surface {{ background: {surface}; }}
 "#,
             body = self.fs(1.0),
             caption = self.fs(0.833),

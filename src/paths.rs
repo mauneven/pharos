@@ -1,8 +1,8 @@
-//! XDG locations Beacon reads and writes.
+//! XDG locations Pharos reads and writes.
 
 use std::path::PathBuf;
 
-pub const APP_ID: &str = "com.mauneven.beacon";
+pub const APP_ID: &str = "com.mauneven.pharos";
 
 fn home() -> PathBuf {
     std::env::var_os("HOME")
@@ -26,7 +26,7 @@ pub fn state_home() -> PathBuf {
 }
 
 pub fn config_file() -> PathBuf {
-    config_home().join("beacon/config.toml")
+    config_home().join("pharos/config.toml")
 }
 
 pub fn autostart_file() -> PathBuf {
