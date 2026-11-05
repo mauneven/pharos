@@ -10,8 +10,15 @@
 </p>
 
 <p align="center">
-  <img src="docs/pharos.png" width="420" alt="Pharos with five reminders">
+  <img src="docs/tokyo-night.jpg" alt="Pharos on the Tokyo Night theme">
 </p>
+
+<p align="center">
+  <img src="docs/catppuccin-latte.jpg" width="49%" alt="Pharos on the Catppuccin Latte theme">
+  <img src="docs/gruvbox.jpg" width="49%" alt="Pharos on the Gruvbox theme">
+</p>
+
+<p align="center"><sub>Tokyo Night, Catppuccin Latte and Gruvbox. Pharos follows whichever theme you pick.</sub></p>
 
 ## Install
 
@@ -77,8 +84,9 @@ with the theme and font.
   Omarchy theme and change live when you switch themes.
 - **Language.** All 50 Omarchy languages, following Omarchy's language setting.
   Built-in reminders switch language with it until you rename them.
-- **Window.** Tiles like any window and follows Omarchy's window transparency
-  (opaque, see-through or glassy).
+- **Window.** Opens centered at the size its reminders need. `Super+T` tiles
+  it like any window. Follows Omarchy's window transparency (opaque,
+  see-through or glassy).
 - **Notifications.** Sent with `omarchy notification send`, so they look like
   every other Omarchy notification.
 - **Sleep.** After the laptop sleeps, the clocks start over quietly instead of

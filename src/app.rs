@@ -16,8 +16,6 @@ use crate::{autostart, i18n, notify, paths};
 const SNOOZE: Duration = Duration::from_secs(5 * 60);
 /// Widest the content column grows; past that it stays centered.
 const COLUMN: f64 = 520.0;
-/// Room the header and hint take, kept free when sizing the list.
-const CHROME_HEIGHT: f64 = 150.0;
 
 const ICON_EDIT: &str = "\u{f03eb}"; // nf-md-pencil
 const ICON_DONE: &str = "\u{f012c}"; // nf-md-check
@@ -419,8 +417,15 @@ impl Pharos {
             glib::ControlFlow::Continue
         });
 
-        // Every open is a new Hyprland window, so tag on each one.
-        window.connect_map(|_| crate::hypr::tag_transparent());
+        // Every open is a new Hyprland window: tag it, and float it at the
+        // size the content needs instead of stretching it over the screen.
+        let this = self.clone();
+        window.connect_map(move |w| {
+            crate::hypr::on_open(this.natural_size(w));
+            // Fit the list to the new size as soon as Hyprland applies it.
+            let this = this.clone();
+            glib::timeout_add_local_once(Duration::from_millis(350), move || this.relayout());
+        });
 
         // Closing destroys the window instead of hiding it: Pharos spends
         // most of its life in the background, and a hidden window would keep
@@ -460,6 +465,30 @@ impl Pharos {
         self.rebuild();
     }
 
+    /// The window size (logical px) that fits the column and every row,
+    /// capped at 85% of the screen height; the list scrolls past that.
+    fn natural_size(&self, window: &gtk::ApplicationWindow) -> (i32, i32) {
+        let size = {
+            let ui = self.ui.borrow();
+            let Some(ui) = ui.as_ref() else {
+                return (480, 640);
+            };
+            let theme = self.theme.borrow();
+            let scale = theme.gap(100.0) as f64 / 100.0;
+            let width = (COLUMN * scale).round() as i32 + 2 * theme.padding();
+            ui.scroller.set_max_content_height(i32::MAX / 2);
+            let (_, height, _, _) = ui.root.measure(gtk::Orientation::Vertical, width);
+            let cap = window
+                .surface()
+                .and_then(|s| gdk::Display::default()?.monitor_at_surface(&s))
+                .map_or(900, |m| m.geometry().height() * 85 / 100);
+            (width, height.min(cap))
+        };
+        // Put the list's height limit back for the current window size.
+        self.relayout();
+        size
+    }
+
     /// Centers a column of at most COLUMN px in whatever size the window
     /// has, and lets the list use the height that's left. Spacing follows
     /// the theme's scale, the way the shell scales its panels.
@@ -478,7 +507,11 @@ impl Pharos {
             ui.root.set_halign(gtk::Align::Fill);
             ui.root.set_size_request(-1, -1);
         }
-        let list = (height - CHROME_HEIGHT * scale).max(160.0 * scale);
+        // Whatever isn't the list (header, hint, edit buttons) keeps its
+        // natural height; the list gets the rest.
+        let (_, root_h, _, _) = ui.root.measure(gtk::Orientation::Vertical, -1);
+        let (_, list_h, _, _) = ui.scroller.measure(gtk::Orientation::Vertical, -1);
+        let list = (height - f64::from(root_h - list_h)).max(160.0 * scale);
         ui.scroller.set_max_content_height(list.round() as i32);
         for (i, w) in ui.columns.iter().enumerate() {
             w.set_margin_start(pad);
