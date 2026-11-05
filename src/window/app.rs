@@ -1,5 +1,8 @@
-//! The Pharos window and the glue between it, the config, the scheduler and
-//! the live Omarchy theme and language.
+//! The Pharos window: shows the reminders and edits the config file.
+//!
+//! The clocks run in the background process (`pharos`). This window keeps a
+//! copy of them for the countdowns, read from the state file the background
+//! process publishes, and tells it to `reload` after every save.
 
 use gtk::prelude::*;
 use gtk::{gdk, gio, glib};
@@ -7,13 +10,11 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
-use crate::config::{Config, MAX_MINUTES, MIN_MINUTES, Reminder};
-use crate::scheduler::{self, Scheduler};
 use crate::theme::Theme;
-use crate::tray::{self, Tray};
-use crate::{autostart, i18n, notify, paths};
+use pharos_core::config::{self, Config, MAX_MINUTES, MIN_MINUTES, Reminder};
+use pharos_core::scheduler::{self, Scheduler};
+use pharos_core::{autostart, i18n, ipc, paths};
 
-const SNOOZE: Duration = Duration::from_secs(5 * 60);
 /// Widest the content column grows; past that it stays centered.
 const COLUMN: f64 = 520.0;
 
@@ -34,8 +35,6 @@ pub struct Pharos {
     save_source: RefCell<Option<glib::SourceId>>,
     reload_source: RefCell<Option<glib::SourceId>>,
     monitors: RefCell<Vec<gio::FileMonitor>>,
-    tray: RefCell<Option<Tray>>,
-    _hold: gio::ApplicationHoldGuard,
 }
 
 struct Ui {
@@ -79,6 +78,11 @@ impl Pharos {
         }
         let mut scheduler = Scheduler::default();
         scheduler.restart_all(&config, SystemTime::now());
+        if ipc::send("ping").is_err() {
+            start_background();
+        } else if let Some(deadlines) = ipc::read_state() {
+            scheduler.set_deadlines(deadlines);
+        }
 
         let this = Rc::new(Pharos {
             app: app.clone(),
@@ -92,10 +96,7 @@ impl Pharos {
             save_source: RefCell::new(None),
             reload_source: RefCell::new(None),
             monitors: RefCell::new(Vec::new()),
-            tray: RefCell::new(None),
-            _hold: app.hold(),
         });
-        this.start_tray();
         this.apply_theme();
         this.watch_files();
 
@@ -107,49 +108,38 @@ impl Pharos {
         this
     }
 
-    // ------------------------------------------------------------ tray
-
-    fn start_tray(self: &Rc<Self>) {
-        let (tx, rx) = async_channel::unbounded();
-        *self.tray.borrow_mut() = Tray::spawn(self.config.borrow().enabled, tx);
-        let this = self.clone();
-        glib::spawn_future_local(async move {
-            while let Ok(action) = rx.recv().await {
-                match action {
-                    tray::Action::Open => this.present(),
-                    tray::Action::SetEnabled(on) => this.set_master(on),
-                    tray::Action::Quit => {
-                        this.flush();
-                        this.app.quit();
-                    }
-                }
-            }
-        });
-    }
-
     // ------------------------------------------------------------ clock
 
     fn tick(self: &Rc<Self>) {
-        let now = SystemTime::now();
-        let due = {
-            let cfg = self.config.borrow();
-            self.scheduler.borrow_mut().tick(&cfg, now)
-        };
-        for id in due {
-            let cfg = self.config.borrow();
-            if let Some(r) = cfg.reminders.iter().find(|r| r.id == id) {
-                notify::send(r.id, &r.display_name(), r.minutes);
-            }
-        }
         if self.window_visible() {
             self.refresh_live();
         }
     }
 
-    pub fn snooze(self: &Rc<Self>, id: u32) {
-        self.scheduler
-            .borrow_mut()
-            .snooze(id, SNOOZE, SystemTime::now());
+    /// Takes the clocks the background process published.
+    fn sync_clocks(&self) {
+        if let Some(deadlines) = ipc::read_state() {
+            self.scheduler.borrow_mut().set_deadlines(deadlines);
+            self.refresh_live();
+        }
+    }
+
+    /// The config file changed outside this window (the tray's on/off, or
+    /// a hand edit).
+    fn reload_config(self: &Rc<Self>) {
+        if self.save_source.borrow().is_some() {
+            return; // our own edit is about to land
+        }
+        let new = match Config::load_from(&paths::config_file()) {
+            config::Loaded::FirstRun(cfg) | config::Loaded::Existing(cfg) => cfg,
+        };
+        if new == *self.config.borrow() {
+            return;
+        }
+        let on = new.enabled;
+        *self.config.borrow_mut() = new;
+        self.show_master(on);
+        self.rebuild();
         self.refresh_live();
     }
 
@@ -186,6 +176,11 @@ impl Pharos {
     fn save_now(&self) {
         if let Err(err) = self.config.borrow().save() {
             eprintln!("pharos: could not save config: {err}");
+            return;
+        }
+        // The background process restarts the clocks that changed.
+        if ipc::send("reload").is_err() {
+            start_background();
         }
     }
 
@@ -221,9 +216,6 @@ impl Pharos {
         *self.theme.borrow_mut() = Theme::load();
         self.apply_theme();
         if i18n::reload() {
-            if let Some(tray) = self.tray.borrow().as_ref() {
-                tray.relabel();
-            }
             self.apply_direction();
             self.relabel();
             self.rebuild();
@@ -258,6 +250,21 @@ impl Pharos {
         for m in &monitors {
             let this = self.clone();
             m.connect_changed(move |_, _, _, _| this.schedule_reload());
+        }
+        let watch = |path: std::path::PathBuf| {
+            gio::File::for_path(path)
+                .monitor_file(gio::FileMonitorFlags::WATCH_MOVES, gio::Cancellable::NONE)
+                .ok()
+        };
+        if let Some(m) = watch(ipc::state_path()) {
+            let this = self.clone();
+            m.connect_changed(move |_, _, _, _| this.sync_clocks());
+            monitors.push(m);
+        }
+        if let Some(m) = watch(paths::config_file()) {
+            let this = self.clone();
+            m.connect_changed(move |_, _, _, _| this.reload_config());
+            monitors.push(m);
         }
         *self.monitors.borrow_mut() = monitors;
     }
@@ -427,14 +434,12 @@ impl Pharos {
             glib::timeout_add_local_once(Duration::from_millis(350), move || this.relayout());
         });
 
-        // Closing destroys the window instead of hiding it: Pharos spends
-        // most of its life in the background, and a hidden window would keep
-        // every widget and render buffer in memory.
+        // Closing ends this program; the reminders keep running in the
+        // background process.
         let this = self.clone();
         window.connect_close_request(move |_| {
+            this.flush();
             this.ui.borrow_mut().take();
-            this.editing.set(false);
-            glib::timeout_add_local_once(Duration::from_millis(500), release_memory);
             glib::Propagation::Proceed
         });
 
@@ -807,9 +812,13 @@ impl Pharos {
                 .borrow_mut()
                 .restart_all(&cfg, SystemTime::now());
         }
-        if let Some(tray) = self.tray.borrow().as_ref() {
-            tray.set_enabled(on);
-        }
+        self.show_master(on);
+        self.schedule_save();
+        self.refresh_live();
+    }
+
+    /// Puts the switch and the dimmed list in step with `on`.
+    fn show_master(&self, on: bool) {
         let switch = self.ui.borrow().as_ref().map(|ui| {
             if on {
                 ui.list.remove_css_class("paused");
@@ -818,15 +827,12 @@ impl Pharos {
             }
             ui.master.clone()
         });
-        // From the tray: keep the window's switch in step. Its handler
-        // returns early because the config already matches.
+        // The switch's handler returns early: the config already matches.
         if let Some(sw) = switch {
             if sw.is_active() != on {
                 sw.set_active(on);
             }
         }
-        self.schedule_save();
-        self.refresh_live();
     }
 
     fn set_enabled(self: &Rc<Self>, id: u32, on: bool) {
@@ -1035,14 +1041,19 @@ fn snapshot_to_png(window: &gtk::ApplicationWindow, path: &std::path::Path) {
     }
 }
 
-/// Hands freed heap pages back to the system, so closing the window really
-/// lowers what Pharos uses.
-fn release_memory() {
-    unsafe extern "C" {
-        fn malloc_trim(pad: usize) -> std::ffi::c_int;
-    }
-    // SAFETY: glibc's malloc_trim only releases free memory.
-    unsafe {
-        malloc_trim(0);
+/// Starts the background process if it isn't running (the window was
+/// opened directly), so the reminders run after the window closes.
+fn start_background() {
+    let exe = std::env::current_exe()
+        .ok()
+        .map(|e| e.with_file_name("pharos"))
+        .filter(|p| p.is_file())
+        .unwrap_or_else(|| "pharos".into());
+    if let Ok(mut child) = std::process::Command::new(exe)
+        .arg("--background")
+        .stdin(std::process::Stdio::null())
+        .spawn()
+    {
+        std::thread::spawn(move || child.wait());
     }
 }

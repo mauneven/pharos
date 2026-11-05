@@ -4,12 +4,12 @@
 //! The icon is the app icon itself, the lighthouse.
 //!
 //! ksni runs the D-Bus side on its own thread; menu clicks come back to the
-//! GTK main loop through a channel as `Action`s.
+//! background loop as `Action`s.
 
 use ksni::blocking::TrayMethods;
 use ksni::menu::{MenuItem, StandardItem};
 
-use crate::{i18n, paths};
+use pharos_core::{i18n, paths};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action {
@@ -39,12 +39,12 @@ impl Labels {
 struct Item {
     enabled: bool,
     labels: Labels,
-    tx: async_channel::Sender<Action>,
+    tx: Box<dyn Fn(Action) + Send>,
 }
 
 impl Item {
     fn send(&self, action: Action) {
-        let _ = self.tx.send_blocking(action);
+        (self.tx)(action);
     }
 }
 
@@ -113,11 +113,11 @@ pub struct Tray {
 impl Tray {
     /// Registers the tray icon. Returns None (and Pharos runs without one)
     /// when there's no session bus.
-    pub fn spawn(enabled: bool, tx: async_channel::Sender<Action>) -> Option<Tray> {
+    pub fn spawn(enabled: bool, tx: impl Fn(Action) + Send + 'static) -> Option<Tray> {
         let item = Item {
             enabled,
             labels: Labels::current(),
-            tx,
+            tx: Box::new(tx),
         };
         // The bar may start after Pharos at login; register anyway and let
         // the watcher pick the icon up when it appears.
@@ -143,16 +143,18 @@ impl Tray {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testutil::language;
+    use pharos_core::testutil::language;
     use ksni::Tray as _;
 
-    fn item(enabled: bool) -> (Item, async_channel::Receiver<Action>) {
-        let (tx, rx) = async_channel::unbounded();
+    fn item(enabled: bool) -> (Item, std::sync::mpsc::Receiver<Action>) {
+        let (tx, rx) = std::sync::mpsc::channel();
         (
             Item {
                 enabled,
                 labels: Labels::current(),
-                tx,
+                tx: Box::new(move |a| {
+                    let _ = tx.send(a);
+                }),
             },
             rx,
         )
@@ -169,7 +171,7 @@ mod tests {
     }
 
     /// Clicks the n-th clickable entry and returns what it asked for.
-    fn click(item: &mut Item, rx: &async_channel::Receiver<Action>, n: usize) -> Action {
+    fn click(item: &mut Item, rx: &std::sync::mpsc::Receiver<Action>, n: usize) -> Action {
         let menu = item.menu();
         let entry = menu
             .into_iter()

@@ -4,7 +4,7 @@
 
 use std::process::{Command, Stdio};
 
-use crate::i18n;
+use pharos_core::i18n;
 
 const GLYPH: &str = "\u{f009a}"; // nf-md-bell
 
@@ -29,7 +29,7 @@ pub fn send(id: u32, name: &str, minutes: u32) {
 
     let mut fallback = Command::new("notify-send");
     fallback
-        .args(["-a", "Pharos", "-i", crate::paths::APP_ID])
+        .args(["-a", "Pharos", "-i", pharos_core::paths::APP_ID])
         .arg(title)
         .arg(&body);
     if !spawn(fallback) {

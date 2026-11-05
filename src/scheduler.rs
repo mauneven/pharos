@@ -40,6 +40,37 @@ impl Scheduler {
         }
     }
 
+    pub fn deadlines(&self) -> &HashMap<u32, SystemTime> {
+        &self.deadlines
+    }
+
+    /// Takes the clocks the background process keeps (the window shows them).
+    pub fn set_deadlines(&mut self, deadlines: HashMap<u32, SystemTime>) {
+        self.deadlines = deadlines;
+    }
+
+    /// Brings the clocks in line with an edited config: a new reminder, new
+    /// minutes, or a reminder turned on starts from zero; turning Pharos
+    /// on restarts everything; untouched reminders keep counting.
+    pub fn apply(&mut self, old: &Config, new: &Config, now: SystemTime) {
+        if old.enabled != new.enabled {
+            self.restart_all(new, now);
+            return;
+        }
+        self.deadlines
+            .retain(|id, _| new.reminders.iter().any(|r| r.id == *id));
+        for r in &new.reminders {
+            let changed = old
+                .reminders
+                .iter()
+                .find(|o| o.id == r.id)
+                .is_none_or(|o| o.minutes != r.minutes || o.enabled != r.enabled);
+            if changed {
+                self.restart(new, r, now);
+            }
+        }
+    }
+
     pub fn remove(&mut self, id: u32) {
         self.deadlines.remove(&id);
     }
@@ -139,6 +170,40 @@ mod tests {
         s.tick(&cfg, start);
         let fired = run(&mut s, &cfg, start, 61 * 60);
         assert_eq!(fired, vec![(20, 1), (40, 1), (60, 1)]);
+    }
+
+    #[test]
+    fn edits_from_the_window_restart_only_what_changed() {
+        let old = cfg();
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000);
+        let later = start + Duration::from_secs(300);
+        let mut s = Scheduler::default();
+        s.restart_all(&old, start);
+
+        // Water untouched, eyes turned on, a new reminder added.
+        let mut new = old.clone();
+        new.reminders[1].enabled = true;
+        new.reminders.push(Reminder::preset(3, "legs", 40, true));
+        s.apply(&old, &new, later);
+        assert_eq!(s.remaining(1, later), Some(Duration::from_secs(15 * 60)));
+        assert_eq!(s.remaining(2, later), Some(Duration::from_secs(10 * 60)));
+        assert_eq!(s.remaining(3, later), Some(Duration::from_secs(40 * 60)));
+
+        // New minutes restart; a deleted reminder stops.
+        let mut newer = new.clone();
+        newer.reminders[0].minutes = 30;
+        newer.reminders.remove(2);
+        s.apply(&new, &newer, later);
+        assert_eq!(s.remaining(1, later), Some(Duration::from_secs(30 * 60)));
+        assert_eq!(s.remaining(3, later), None);
+
+        // Pharos off stops everything; on starts everything from zero.
+        let mut off = newer.clone();
+        off.enabled = false;
+        s.apply(&newer, &off, later);
+        assert!(s.deadlines().is_empty());
+        s.apply(&off, &newer, later);
+        assert_eq!(s.remaining(2, later), Some(Duration::from_secs(10 * 60)));
     }
 
     #[test]

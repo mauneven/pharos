@@ -10,7 +10,7 @@
 use std::process::Command;
 use toml::{Table, Value};
 
-use crate::paths;
+use pharos_core::paths;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rgba {

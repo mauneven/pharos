@@ -68,15 +68,18 @@ To open Pharos with a key, bind `pharos --toggle` in
 
 ## Light on memory
 
-Pharos is a single Rust process, and it frees its window when you close it.
+Pharos spends almost all day in the background, so that part is tiny. The
+clocks, notifications and tray icon run in `pharos`, which loads no GUI
+toolkit. The window is a separate program, `pharos-window`, that only exists
+while it's open.
 
 | State                        | RAM (PSS) |
 | ---------------------------- | --------- |
-| In the background            | ~18 MB    |
-| Window open                  | ~27 MB    |
+| In the background            | ~3 MB     |
+| Window open                  | ~31 MB    |
 
-Measured on Omarchy with `/proc/<pid>/smaps_rollup`. Your numbers vary a little
-with the theme and font.
+Measured on Omarchy with `/proc/<pid>/smaps_rollup`. Closing the window gives
+its memory back right away.
 
 ## Fits in Omarchy
 

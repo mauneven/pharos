@@ -7,7 +7,7 @@
 use std::process::Command;
 use std::time::Duration;
 
-use crate::paths;
+use pharos_core::paths;
 
 /// Runs when the window opens: tags it transparent, then floats it in the
 /// middle of the screen at `size` (logical px), the size its content needs.

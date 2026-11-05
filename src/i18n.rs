@@ -94,7 +94,7 @@ pub fn reload() -> bool {
 
 /// Tests pin a language without touching Omarchy's file. Use
 /// `testutil::language`, which also serializes the tests that do this.
-#[cfg(test)]
+#[doc(hidden)]
 pub fn set_for_test(code: &str) {
     let mut slot = current().write().unwrap_or_else(|e| e.into_inner());
     *slot = Some(parse(resolve(code)));

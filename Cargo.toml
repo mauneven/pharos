@@ -1,6 +1,6 @@
 [package]
 name = "pharos"
-version = "0.2.5"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Gentle break reminders, built for Omarchy"
@@ -11,12 +11,23 @@ keywords = ["omarchy", "reminders", "gtk4", "wayland", "health"]
 categories = ["gui"]
 
 [dependencies]
-async-channel = "2.5.0"
 gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
 ksni = { version = "0.3.7", default-features = false, features = ["blocking", "async-io"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.154"
 toml = "1"
+
+[lib]
+name = "pharos_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "pharos"
+path = "src/main.rs"
+
+[[bin]]
+name = "pharos-window"
+path = "src/window/main.rs"
 
 [profile.release]
 opt-level = 3

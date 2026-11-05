@@ -1,5 +1,5 @@
-//! Command-line parsing, shared by the process you start and the running
-//! instance that receives the forwarded arguments.
+//! Command-line parsing for `pharos`. Commands meant for the running
+//! instance are forwarded to it over its socket.
 
 pub const HELP: &str = "\
 Pharos — break reminders for Omarchy

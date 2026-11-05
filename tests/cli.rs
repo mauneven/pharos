@@ -91,9 +91,98 @@ fn wait_for(path: &Path, timeout: Duration) -> Option<String> {
     None
 }
 
+/// Reads the state file the background process publishes: id -> seconds
+/// left (rounded).
+fn clocks(dir: &Path) -> Vec<(u32, u64)> {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    let text = std::fs::read_to_string(dir.join("pharos.state")).unwrap_or_default();
+    text.lines()
+        .filter_map(|l| {
+            let (id, ms) = l.split_once(' ')?;
+            let ms: u64 = ms.parse().ok()?;
+            Some((id.parse().ok()?, (ms.saturating_sub(now) + 500) / 1000))
+        })
+        .collect()
+}
+
+fn until(what: &str, timeout: Duration, mut ok: impl FnMut() -> bool) {
+    let start = Instant::now();
+    while !ok() {
+        assert!(start.elapsed() < timeout, "timed out waiting for {what}");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// The background process on its own: no window and no GTK. It answers
+/// on its socket, publishes the clocks, snoozes, follows config edits and
+/// quits.
+#[test]
+fn background_process_keeps_the_clocks() {
+    let dir = Dir::new("bg");
+    let config = dir.0.join("config");
+    std::fs::create_dir_all(config.join("pharos")).unwrap();
+    let file = config.join("pharos/config.toml");
+    std::fs::write(
+        &file,
+        "enabled = true\n[[reminder]]\nid = 3\npreset = \"water\"\nminutes = 20\nenabled = true\n\
+         [[reminder]]\nid = 4\nname = \"Tea\"\nminutes = 30\nenabled = false\n",
+    )
+    .unwrap();
+    let cmd = |args: &[&str]| {
+        let mut c = pharos();
+        c.args(args)
+            .env("XDG_CONFIG_HOME", &config)
+            .env("XDG_RUNTIME_DIR", &dir.0)
+            // No session bus: no tray icon in the real bar.
+            .env("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        c
+    };
+    let mut daemon = cmd(&["--background"]).spawn().unwrap();
+
+    until("the first clocks", Duration::from_secs(5), || {
+        clocks(&dir.0) == [(3, 1200)]
+    });
+
+    assert!(cmd(&["--snooze", "3"]).status().unwrap().success());
+    until("the snooze", Duration::from_secs(5), || clocks(&dir.0) == [(3, 300)]);
+
+    // An edit to the file (what the window does): Tea on, new minutes for
+    // water. Both clocks start over.
+    let edited = std::fs::read_to_string(&file)
+        .unwrap()
+        .replace("minutes = 20", "minutes = 25")
+        .replace("enabled = false", "enabled = true");
+    std::fs::write(&file, edited).unwrap();
+    until("the edit", Duration::from_secs(5), || {
+        clocks(&dir.0) == [(3, 1500), (4, 1800)]
+    });
+
+    // Turning Pharos off stops every clock.
+    let off = std::fs::read_to_string(&file)
+        .unwrap()
+        .replacen("enabled = true", "enabled = false", 1);
+    std::fs::write(&file, off).unwrap();
+    until("pausing", Duration::from_secs(5), || clocks(&dir.0).is_empty());
+
+    assert!(cmd(&["--quit"]).status().unwrap().success());
+    until("quit", Duration::from_secs(5), || {
+        daemon.try_wait().unwrap().is_some()
+    });
+    assert!(!dir.0.join("pharos.sock").exists());
+
+    // With nothing running, a snooze says so.
+    let out = cmd(&["--snooze", "3"]).stderr(std::process::Stdio::piped()).output().unwrap();
+    assert!(!out.status.success());
+}
+
 /// Starts Pharos for real with a one-minute reminder and waits for the
-/// notification. Needs a graphical session and `dbus-run-session`, and takes
-/// a minute, so it only runs on request: `cargo test -- --ignored`.
+/// notification. Takes a minute, so it only runs on request:
+/// `cargo test -- --ignored`.
 #[test]
 #[ignore]
 fn sends_the_notification_every_interval() {
@@ -137,6 +226,7 @@ fn sends_the_notification_every_interval() {
         .arg(env!("CARGO_BIN_EXE_pharos"))
         .arg("--background")
         .env("XDG_CONFIG_HOME", &config)
+        .env("XDG_RUNTIME_DIR", &dir.0)
         .env("OMARCHY_LANGUAGE_FILE", dir.0.join("language"))
         .env("PATH", path)
         .stdout(std::process::Stdio::null())
