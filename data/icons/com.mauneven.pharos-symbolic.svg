@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
+  <!-- The tray icon: the app icon's mark alone, on no background. Its
+       "-symbolic" name tells the Omarchy bar to paint it in the theme's
+       foreground, like the other tray icons. -->
+  <g fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M3 7V3h18v4M3 17v4h18v-4"/>
+    <path d="M10 10h4v4h-4z" fill="#ffffff"/>
+    <path d="M3 12h4M17 12h4"/>
+  </g>
+</svg>

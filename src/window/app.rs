@@ -425,12 +425,12 @@ impl Pharos {
             glib::ControlFlow::Continue
         });
 
-        // Every open is a new Hyprland window: tag it, and float it at the
-        // size the content needs instead of stretching it over the screen.
+        // Every open is a new Hyprland window: tag it for Omarchy's window
+        // transparency. Hyprland tiles it like any other window.
         let this = self.clone();
-        window.connect_map(move |w| {
-            crate::hypr::on_open(this.natural_size(w));
-            // Fit the list to the new size as soon as Hyprland applies it.
+        window.connect_map(move |_| {
+            crate::hypr::on_open();
+            // Fit the list to the tile as soon as Hyprland applies it.
             let this = this.clone();
             glib::timeout_add_local_once(Duration::from_millis(350), move || this.relayout());
         });
@@ -473,30 +473,6 @@ impl Pharos {
         self.relabel();
         self.relayout();
         self.rebuild();
-    }
-
-    /// The window size (logical px) that fits the column and every row,
-    /// capped at 85% of the screen height; the list scrolls past that.
-    fn natural_size(&self, window: &gtk::ApplicationWindow) -> (i32, i32) {
-        let size = {
-            let ui = self.ui.borrow();
-            let Some(ui) = ui.as_ref() else {
-                return (480, 640);
-            };
-            let theme = self.theme.borrow();
-            let scale = theme.gap(100.0) as f64 / 100.0;
-            let width = (COLUMN * scale).round() as i32 + 2 * theme.padding();
-            ui.scroller.set_max_content_height(i32::MAX / 2);
-            let (_, height, _, _) = ui.root.measure(gtk::Orientation::Vertical, width);
-            let cap = window
-                .surface()
-                .and_then(|s| gdk::Display::default()?.monitor_at_surface(&s))
-                .map_or(900, |m| m.geometry().height() * 85 / 100);
-            (width, height.min(cap))
-        };
-        // Put the list's height limit back for the current window size.
-        self.relayout();
-        size
     }
 
     /// Centers a column of at most COLUMN px in whatever size the window

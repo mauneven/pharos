@@ -88,9 +88,8 @@ Closing the window gives all of its memory back right away.
   Omarchy theme and change live when you switch themes.
 - **Language.** All 50 Omarchy languages, following Omarchy's language setting.
   Built-in reminders switch language with it until you rename them.
-- **Window.** Opens centered at the size its reminders need. `Super+T` tiles
-  it like any window. Follows Omarchy's window transparency (opaque,
-  see-through or glassy).
+- **Window.** Tiles into the free space like a terminal. Follows Omarchy's
+  window transparency (opaque, see-through or glassy).
 - **Notifications.** Sent with `omarchy notification send`, so they look like
   every other Omarchy notification.
 - **Sleep.** After the laptop sleeps, the clocks start over quietly instead of

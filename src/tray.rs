@@ -1,7 +1,8 @@
 //! The tray icon in the Omarchy bar (StatusNotifierItem).
 //!
 //! Left click opens the window. Right click: Open, Turn on / Turn off, Quit.
-//! The icon is the app icon itself, the lighthouse.
+//! The icon is the lighthouse mark as a symbolic icon, which the bar paints
+//! in the theme's foreground like the other tray icons.
 //!
 //! ksni runs the D-Bus side on its own thread; menu clicks come back to the
 //! background loop as `Action`s.
@@ -9,7 +10,7 @@
 use ksni::blocking::TrayMethods;
 use ksni::menu::{MenuItem, StandardItem};
 
-use pharos_core::{i18n, paths};
+use pharos_core::i18n;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action {
@@ -34,6 +35,16 @@ impl Labels {
             quit: i18n::tr("tray_quit"),
         }
     }
+}
+
+const TRAY_ICON: &str = "com.mauneven.pharos-symbolic";
+
+/// Where the symbolic icon is installed next to this binary:
+/// `<prefix>/bin/pharos` -> `<prefix>/share/icons/hicolor/symbolic/apps`.
+fn icon_dir() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?.parent()?.join("share/icons/hicolor/symbolic/apps");
+    dir.join(format!("{TRAY_ICON}.svg")).is_file().then_some(dir)
 }
 
 struct Item {
@@ -62,7 +73,13 @@ impl ksni::Tray for Item {
     }
 
     fn icon_name(&self) -> String {
-        paths::APP_ID.into()
+        TRAY_ICON.into()
+    }
+
+    // The folder holding the icon file, so the bar finds it even when its
+    // icon theme lookup was cached before Pharos was installed.
+    fn icon_theme_path(&self) -> String {
+        icon_dir().map(|d| d.display().to_string()).unwrap_or_default()
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {
@@ -143,6 +160,7 @@ impl Tray {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pharos_core::paths;
     use pharos_core::testutil::language;
     use ksni::Tray as _;
 
@@ -219,10 +237,10 @@ mod tests {
     }
 
     #[test]
-    fn shows_the_app_icon() {
+    fn shows_the_symbolic_app_icon() {
         let _l = language("en");
         let (it, _rx) = item(false);
-        assert_eq!(it.icon_name(), paths::APP_ID);
+        assert_eq!(it.icon_name(), format!("{}-symbolic", paths::APP_ID));
         assert_eq!(it.id(), "pharos");
     }
 }
