@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="64" alt="">
+
 # Beacon
 
 Gentle break reminders, built for [Omarchy](https://omarchy.org).

@@ -429,14 +429,14 @@ window.beacon label {{ color: inherit; }}
 .beacon checkbutton:focus-visible check {{ border-color: {f_border}; }}
 .beacon checkbutton label {{ padding-left: {sp8}; }}
 
-/* slider, after the shell's PanelSlider: thin rounded track, foreground fill,
-   round knob ringed in the background color */
+/* slider, after the shell's PanelSlider: thin track, foreground fill, a knob
+   ringed in the background color; corners follow Hyprland's rounding */
 .beacon scale {{ padding: {sp8} {sp4}; margin: 0; }}
 .beacon scale trough {{
   min-height: 4px;
   min-width: 0;
   margin: 0;
-  border-radius: 999px;
+  border-radius: {r};
   border: none;
   background: {track};
 }}
@@ -444,7 +444,7 @@ window.beacon label {{ color: inherit; }}
   min-height: 4px;
   min-width: 0;
   margin: 0;
-  border-radius: 999px;
+  border-radius: {r};
   border: none;
   background: {fg};
 }}
@@ -452,7 +452,7 @@ window.beacon label {{ color: inherit; }}
   min-width: {knob};
   min-height: {knob};
   margin: {knob_margin};
-  border-radius: 999px;
+  border-radius: {r};
   border: 2px solid {solid_bg};
   background: {fg};
   transition: transform 110ms ease-out;
@@ -469,15 +469,25 @@ window.beacon label {{ color: inherit; }}
 .beacon .reminder.off scale highlight,
 .beacon .reminder.off scale slider {{ background: {muted}; }}
 
-/* scrollbars */
-.beacon scrollbar {{ background: transparent; border: none; }}
+/* scrollbars: square like Flea, following Hyprland's rounding */
+.beacon scrollbar {{
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+}}
 .beacon scrollbar slider {{
-  min-width: 3px;
-  min-height: 3px;
-  border-radius: 999px;
+  min-width: 4px;
+  min-height: 4px;
+  margin: 0;
+  border-radius: {r};
   background: {faint};
   border: none;
+  transition: background-color 100ms ease-out;
 }}
+.beacon scrollbar slider:hover {{ background: {muted}; }}
+.beacon scrollbar slider:active {{ background: {fg}; }}
+.beacon scrollbar.hovering slider {{ min-width: 6px; }}
 .beacon undershoot, .beacon overshoot {{ background: none; }}
 
 separator.beacon-sep {{ background: {n_border}; min-height: 1px; }}
