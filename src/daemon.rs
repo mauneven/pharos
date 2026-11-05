@@ -33,6 +33,18 @@ struct Daemon {
     published: HashMap<u32, SystemTime>,
     config_mtime: Option<SystemTime>,
     language_mtime: Option<SystemTime>,
+    theme_stamp: ThemeStamp,
+}
+
+/// What the tray icon's color depends on: the theme in use and the user's
+/// shell.toml. A change to either redraws the icon.
+type ThemeStamp = (Option<SystemTime>, Option<SystemTime>);
+
+fn theme_stamp() -> ThemeStamp {
+    (
+        mtime(&paths::omarchy_current().join("theme.generation")),
+        mtime(&paths::omarchy_user_shell_toml()),
+    )
 }
 
 fn mtime(path: &Path) -> Option<SystemTime> {
@@ -86,6 +98,7 @@ pub fn run(open: bool) -> ExitCode {
         published: HashMap::new(),
         config_mtime: mtime(&paths::config_file()),
         language_mtime: mtime(&i18n::language_file()),
+        theme_stamp: theme_stamp(),
     };
     d.publish();
     if open {
@@ -143,6 +156,13 @@ impl Daemon {
         // its `reload` got lost, still land within a second.
         if mtime(&paths::config_file()) != self.config_mtime {
             self.reload_config();
+        }
+        let theme = theme_stamp();
+        if theme != self.theme_stamp {
+            self.theme_stamp = theme;
+            if let Some(tray) = &self.tray {
+                tray.recolor();
+            }
         }
         let language = mtime(&i18n::language_file());
         if language != self.language_mtime {

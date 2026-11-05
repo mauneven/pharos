@@ -1,8 +1,9 @@
 //! The tray icon in the Omarchy bar (StatusNotifierItem).
 //!
 //! Left click opens the window. Right click: Open, Turn on / Turn off, Quit.
-//! The icon is the lighthouse mark as a symbolic icon, which the bar paints
-//! in the theme's foreground like the other tray icons.
+//! The icon is the lighthouse mark, drawn here in the bar's text color so it
+//! sits with the other tray icons, and redrawn when the theme changes. It's
+//! sent as pixels: the bar can't look up icons by name from the icon theme.
 //!
 //! ksni runs the D-Bus side on its own thread; menu clicks come back to the
 //! background loop as `Action`s.
@@ -10,7 +11,7 @@
 use ksni::blocking::TrayMethods;
 use ksni::menu::{MenuItem, StandardItem};
 
-use pharos_core::i18n;
+use pharos_core::{i18n, paths};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Action {
@@ -37,18 +38,74 @@ impl Labels {
     }
 }
 
-const TRAY_ICON: &str = "com.mauneven.pharos-symbolic";
+/// The mark on Pharos's 24 grid, as filled rectangles (x0, y0, x1, y1): the
+/// lantern frame open at the sides, the light, and its two beams. It's the
+/// app icon's 2px square strokes, outlined.
+const MARK: [(u32, u32, u32, u32); 9] = [
+    (2, 2, 22, 4),   // top of the frame
+    (2, 4, 4, 8),    // its sides
+    (20, 4, 22, 8),
+    (2, 20, 22, 22), // bottom of the frame
+    (2, 16, 4, 20),
+    (20, 16, 22, 20),
+    (9, 9, 15, 15),  // the light
+    (2, 11, 8, 13),  // beams
+    (16, 11, 22, 13),
+];
 
-/// Where the symbolic icon is installed next to this binary:
-/// `<prefix>/bin/pharos` -> `<prefix>/share/icons/hicolor/symbolic/apps`.
-fn icon_dir() -> Option<std::path::PathBuf> {
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?.parent()?.join("share/icons/hicolor/symbolic/apps");
-    dir.join(format!("{TRAY_ICON}.svg")).is_file().then_some(dir)
+/// The mark in `rgb`, at 1x to 4x so the bar can pick a sharp one for any
+/// scale. ARGB32, big-endian, as StatusNotifierItem wants it.
+fn pixmaps(rgb: [u8; 3]) -> Vec<ksni::Icon> {
+    (1..=4)
+        .map(|scale| {
+            let size = 24 * scale;
+            let mut data = vec![0u8; (size * size * 4) as usize];
+            for &(x0, y0, x1, y1) in &MARK {
+                for y in y0 * scale..y1 * scale {
+                    for x in x0 * scale..x1 * scale {
+                        let i = ((y * size + x) * 4) as usize;
+                        data[i..i + 4].copy_from_slice(&[255, rgb[0], rgb[1], rgb[2]]);
+                    }
+                }
+            }
+            ksni::Icon { width: size as i32, height: size as i32, data }
+        })
+        .collect()
+}
+
+/// The bar's text color, the way the Omarchy shell picks it: `[bar] text`
+/// from the user's shell.toml, then the theme's, then the theme foreground.
+pub fn bar_color() -> [u8; 3] {
+    let theme = paths::omarchy_current().join("theme");
+    let bar_text = |path: std::path::PathBuf| {
+        let table: toml::Table = std::fs::read_to_string(path).ok()?.parse().ok()?;
+        hex(table.get("bar")?.get("text")?.as_str()?)
+    };
+    let foreground = || {
+        let text = std::fs::read_to_string(theme.join("colors.toml")).ok()?;
+        let table: toml::Table = text.parse().ok()?;
+        hex(table.get("foreground")?.as_str()?)
+    };
+    bar_text(paths::omarchy_user_shell_toml())
+        .or_else(|| bar_text(theme.join("shell.toml")))
+        .or_else(foreground)
+        .unwrap_or([255, 255, 255])
+}
+
+/// "#rrggbb" (or "#rrggbbaa") to RGB; anything else, such as a role name
+/// like "foreground", is None so the next source is tried.
+fn hex(value: &str) -> Option<[u8; 3]> {
+    let digits = value.trim().strip_prefix('#')?;
+    if digits.len() != 6 && digits.len() != 8 {
+        return None;
+    }
+    let byte = |i: usize| u8::from_str_radix(digits.get(i..i + 2)?, 16).ok();
+    Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
 struct Item {
     enabled: bool,
+    color: [u8; 3],
     labels: Labels,
     tx: Box<dyn Fn(Action) + Send>,
 }
@@ -72,14 +129,8 @@ impl ksni::Tray for Item {
         ksni::Category::ApplicationStatus
     }
 
-    fn icon_name(&self) -> String {
-        TRAY_ICON.into()
-    }
-
-    // The folder holding the icon file, so the bar finds it even when its
-    // icon theme lookup was cached before Pharos was installed.
-    fn icon_theme_path(&self) -> String {
-        icon_dir().map(|d| d.display().to_string()).unwrap_or_default()
+    fn icon_pixmap(&self) -> Vec<ksni::Icon> {
+        pixmaps(self.color)
     }
 
     fn tool_tip(&self) -> ksni::ToolTip {
@@ -133,6 +184,7 @@ impl Tray {
     pub fn spawn(enabled: bool, tx: impl Fn(Action) + Send + 'static) -> Option<Tray> {
         let item = Item {
             enabled,
+            color: bar_color(),
             labels: Labels::current(),
             tx: Box::new(tx),
         };
@@ -151,6 +203,12 @@ impl Tray {
         self.handle.update(|item| item.enabled = enabled);
     }
 
+    /// Redraws the icon in the bar's current text color, after a theme change.
+    pub fn recolor(&self) {
+        let color = bar_color();
+        self.handle.update(|item| item.color = color);
+    }
+
     /// Re-reads the menu labels after a language change.
     pub fn relabel(&self) {
         self.handle.update(|item| item.labels = Labels::current());
@@ -160,7 +218,6 @@ impl Tray {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pharos_core::paths;
     use pharos_core::testutil::language;
     use ksni::Tray as _;
 
@@ -169,6 +226,7 @@ mod tests {
         (
             Item {
                 enabled,
+                color: [255, 255, 255],
                 labels: Labels::current(),
                 tx: Box::new(move |a| {
                     let _ = tx.send(a);
@@ -237,10 +295,28 @@ mod tests {
     }
 
     #[test]
-    fn shows_the_symbolic_app_icon() {
-        let _l = language("en");
-        let (it, _rx) = item(false);
-        assert_eq!(it.icon_name(), format!("{}-symbolic", paths::APP_ID));
-        assert_eq!(it.id(), "pharos");
+    fn draws_the_mark_in_the_bar_color() {
+        let (mut it, _rx) = item(false);
+        it.color = [0x4c, 0x4f, 0x69];
+        assert!(it.icon_name().is_empty());
+        let icons = it.icon_pixmap();
+        assert_eq!(icons.iter().map(|i| i.width).collect::<Vec<_>>(), [24, 48, 72, 96]);
+        let px = |icon: &ksni::Icon, x: i32, y: i32| {
+            let i = ((y * icon.width + x) * 4) as usize;
+            icon.data[i..i + 4].to_vec()
+        };
+        // At 2x: the light is drawn, the open side of the frame is empty.
+        assert_eq!(px(&icons[1], 24, 24), [255, 0x4c, 0x4f, 0x69]);
+        assert_eq!(px(&icons[1], 4, 24), [255, 0x4c, 0x4f, 0x69]); // a beam
+        assert_eq!(px(&icons[1], 4, 18), [0, 0, 0, 0]);
+        assert_eq!(px(&icons[1], 0, 0), [0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn reads_hex_colors_only() {
+        assert_eq!(hex("#ffffff"), Some([255, 255, 255]));
+        assert_eq!(hex(" #4C4F69cc "), Some([0x4c, 0x4f, 0x69]));
+        assert_eq!(hex("foreground"), None);
+        assert_eq!(hex("#fff"), None);
     }
 }
