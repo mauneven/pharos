@@ -48,7 +48,7 @@ Click the pencil to rename or delete reminders, add new ones with
 **+ New reminder**, and choose whether Pharos starts at login.
 
 <p align="center">
-  <img src="docs/editing.png" width="420" alt="Pharos edit view on the Vantablack theme">
+  <img src="docs/vantablack.jpg" alt="Pharos edit view on the Vantablack theme">
 </p>
 
 ### Keyboard
@@ -76,10 +76,11 @@ while it's open.
 | State                        | RAM (PSS) |
 | ---------------------------- | --------- |
 | In the background            | ~3 MB     |
-| Window open                  | ~31 MB    |
+| Window open                  | ~18 MB    |
 
-Measured on Omarchy with `/proc/<pid>/smaps_rollup`. Closing the window gives
-its memory back right away.
+Measured on Omarchy with `/proc/<pid>/smaps_rollup`. A few seconds after you
+stop using the window, it lets go of the GTK code it only needed to start up.
+Closing the window gives all of its memory back right away.
 
 ## Fits in Omarchy
 

@@ -9,6 +9,7 @@
 mod app;
 mod hypr;
 mod theme;
+mod trim;
 
 use gtk::prelude::*;
 use gtk::{gio, glib};

@@ -294,11 +294,12 @@ impl Pharos {
         self.refresh_live();
         let window = self.ui.borrow().as_ref().map(|ui| ui.window.clone());
         if let Some(w) = window {
-            w.present();
-            self.apply_cursor(true);
+            // Before present, so the window opens at the edit view's size.
             if std::env::var_os("PHAROS_SNAPSHOT_EDIT").is_some() {
                 self.set_editing(true);
             }
+            w.present();
+            self.apply_cursor(true);
             if let Some(path) = std::env::var_os("PHAROS_SNAPSHOT") {
                 glib::timeout_add_local_once(Duration::from_millis(900), move || {
                     snapshot_to_png(&w, std::path::Path::new(&path));
@@ -448,6 +449,10 @@ impl Pharos {
         let this = self.clone();
         keys.connect_key_pressed(move |_, key, _, mods| this.on_key(key, mods));
         window.add_controller(keys);
+
+        // Added last: GTK runs a widget's newest controller first, so this
+        // one sees every event before the key handler can stop it.
+        crate::trim::watch(&window);
 
         *self.ui.borrow_mut() = Some(Ui {
             window,
