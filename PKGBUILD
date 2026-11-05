@@ -1,6 +1,6 @@
 # Maintainer: mauneven <mauneven@gmail.com>
 pkgname=pharos
-pkgver=0.2.3
+pkgver=0.2.4
 pkgrel=1
 pkgdesc="Interval break reminders, built for Omarchy"
 arch=('x86_64' 'aarch64')
@@ -11,7 +11,7 @@ optdepends=('libnotify: notifications outside Omarchy')
 makedepends=('cargo')
 options=('!lto')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('9c4d8c3025760d3c41bd137046fcfb4658666abae4ca34a8ebb3860081612a8e')
+sha256sums=('42bb86c9e46b3c2a8bc756408d4841e18d483d941711d921dbb5825321a4187a')
 
 prepare() {
   cd "$pkgname-$pkgver"
