@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24">
-  <rect width="24" height="24" fill="#15161c"/>
-  <!-- Pharos, the Lighthouse of Alexandria, on the 24 grid: a lantern with two
-       beams on a tapered tower. The tray uses this same icon. -->
-  <g fill="#f2c46d">
-    <path d="M2 5.5 9.5 7.5v2L2 11.5z M22 5.5 14.5 7.5v2l7.5 2z" opacity=".5"/>
-    <path d="M10 4.5h4v1h-4z"/>
-    <path d="M10 6.5h4v4h-4z"/>
-    <path d="M10 11.5h4l1.25 8.5h-6.5z"/>
-    <path d="M7.5 20h9v1.5h-9z"/>
+  <!-- Pharos on the 24 grid, in the square-stroke style of Omarchy's marks:
+       a lantern's light with two beams leaving through the open sides of
+       its frame. The tray shows this same icon. A static file can't read the
+       live palette, so it uses Tokyo Night's background and amber. -->
+  <rect width="24" height="24" fill="#1a1b26"/>
+  <g fill="none" stroke="#e0af68" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M3 7V3h18v4M3 17v4h18v-4"/>
+    <path d="M10 10h4v4h-4z" fill="#e0af68"/>
+    <path d="M3 12h4M17 12h4"/>
   </g>
 </svg>
