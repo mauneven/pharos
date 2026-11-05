@@ -1,6 +1,6 @@
 pkgbase = pharos
 	pkgdesc = Interval break reminders, built for Omarchy
-	pkgver = 0.2.5
+	pkgver = 0.3.0
 	pkgrel = 1
 	url = https://github.com/mauneven/pharos
 	arch = x86_64
@@ -16,7 +16,7 @@ pkgbase = pharos
 	depends = hicolor-icon-theme
 	optdepends = libnotify: notifications outside Omarchy
 	options = !lto
-	source = pharos-0.2.5.tar.gz::https://github.com/mauneven/pharos/archive/refs/tags/v0.2.5.tar.gz
-	sha256sums = b30d773bf37b2599c241d63c05cfe7e4aea8a60b189bbbae77bb303a2ab1125c
+	source = pharos-0.3.0.tar.gz::https://github.com/mauneven/pharos/archive/refs/tags/v0.3.0.tar.gz
+	sha256sums = 4e49361d04986a2c43adb18a578f9e20322dcf2296b8878550e9e338f72f8cd0
 
 pkgname = pharos
