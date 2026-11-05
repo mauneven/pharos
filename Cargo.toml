@@ -1,0 +1,22 @@
+[package]
+name = "beacon"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Gentle break reminders, built for Omarchy"
+license = "MIT"
+repository = "https://github.com/mauneven/beacon"
+readme = "README.md"
+keywords = ["omarchy", "reminders", "gtk4", "wayland", "health"]
+categories = ["gui"]
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.11", features = ["v4_14"] }
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
