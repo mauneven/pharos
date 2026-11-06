@@ -336,7 +336,11 @@ impl Theme {
         let backdrop = if self.window_alpha < 1.0 { "blur(20px)" } else { "none" };
         let fg = self.foreground.css();
         let muted = self.muted.css();
-        let faint = self.foreground.alpha(0.35).css();
+        // Secondary text is the theme's own text color, softened. Themes'
+        // `muted` is made for decorations and gets lost on glass.
+        let secondary = self.foreground.alpha(0.62).css();
+        let off = self.foreground.alpha(0.45).css();
+        let faint = self.foreground.alpha(0.48).css();
         let accent = self.accent.css();
         let urgent = self.urgent.css();
         let solid_bg = self.background.css();
@@ -385,10 +389,10 @@ window.pharos label {{ color: inherit; }}
   font-weight: 700;
   letter-spacing: -0.02em;
 }}
-.pharos .status {{ color: {muted}; font-size: {caption}; }}
-.pharos .muted {{ color: {muted}; }}
+.pharos .status {{ color: {secondary}; font-size: {caption}; }}
+.pharos .muted {{ color: {secondary}; }}
 .pharos .hint {{ color: {faint}; font-size: {caption}; }}
-.pharos .empty {{ color: {muted}; padding: {sp24} 0; }}
+.pharos .empty {{ color: {secondary}; padding: {sp24} 0; }}
 .pharos .numeric {{ font-feature-settings: "tnum"; }}
 .pharos .paused {{ opacity: 0.5; }}
 
@@ -406,9 +410,10 @@ window.pharos label {{ color: inherit; }}
 }}
 .pharos .reminder .name {{ font-size: {subtitle}; }}
 .pharos .reminder .value {{ font-size: {body}; min-width: 4.5em; }}
-.pharos .reminder .countdown {{ color: {muted}; font-size: {caption}; }}
+.pharos .reminder .countdown {{ color: {secondary}; font-size: {caption}; }}
 .pharos .reminder.off .name,
-.pharos .reminder.off .value {{ color: {muted}; }}
+.pharos .reminder.off .value,
+.pharos .reminder.off .countdown {{ color: {off}; }}
 
 /* buttons */
 .pharos button {{
@@ -432,7 +437,7 @@ window.pharos label {{ color: inherit; }}
 .pharos button.add {{
   min-height: {sp36};
   border-style: dashed;
-  color: {muted};
+  color: {secondary};
 }}
 .pharos button.add:hover {{ color: {fg}; }}
 .pharos button.editing {{ background: {selected_fill}; border-color: {s_border}; }}
@@ -579,11 +584,11 @@ tooltip.background, tooltip {{
 }}
 .pharos .surface {{ background: {surface}; }}
 "#,
-            body = self.fs(1.0),
-            caption = self.fs(0.833),
-            subtitle = self.fs(1.083),
-            display = self.fs(1.667),
-            icon = self.fs(1.333),
+            body = self.fs(1.083),
+            caption = self.fs(0.917),
+            subtitle = self.fs(1.167),
+            display = self.fs(1.75),
+            icon = self.fs(1.417),
             sp4 = self.sp(4.0),
             sp8 = self.sp(8.0),
             sp10 = self.sp(10.0),
@@ -769,7 +774,8 @@ mod tests {
     #[test]
     fn font_size_scales_text_and_spacing() {
         let t = tokyo("[font]\nbase-size = 18\n", "", 0.0);
-        assert!(t.css().contains("font-size: 18.0px"));
+        // Body text is a touch above the shell's base size.
+        assert!(t.css().contains("font-size: 19.5px"));
         assert_eq!(t.padding(), 27, "18px panels at 1.5x");
         assert_eq!(tokyo("", "", 0.0).padding(), 18);
     }
