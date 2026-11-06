@@ -174,6 +174,10 @@ fn background_process_keeps_the_clocks() {
         daemon.try_wait().unwrap().is_some()
     });
     assert!(!dir.0.join("pharos.sock").exists());
+    // Quitting must not bring anything back (it once restarted itself
+    // through the window when another Pharos window was open).
+    std::thread::sleep(Duration::from_millis(1500));
+    assert!(!dir.0.join("pharos.sock").exists(), "something restarted");
 
     // With nothing running, a snooze says so.
     let out = cmd(&["--snooze", "3"]).stderr(std::process::Stdio::piped()).output().unwrap();

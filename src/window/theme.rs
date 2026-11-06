@@ -154,6 +154,32 @@ fn width(v: Option<&Value>) -> Option<f64> {
     }
 }
 
+/// While Omarchy's windows are Glassy, terminals get a see-through
+/// background (`omarchy-theme-set-glass` writes it into their theme files)
+/// and Hyprland blurs what's behind it. Pharos takes the same alpha, read
+/// from foot's file, so it looks like the terminal next to it. None when
+/// windows aren't Glassy.
+fn glass_alpha(theme_dir: &std::path::Path) -> Option<f64> {
+    let toggle = paths::state_home().join("omarchy/toggles/hypr/window-glassy.lua");
+    if !toggle.is_file() {
+        return None;
+    }
+    let foot = std::fs::read_to_string(theme_dir.join("foot.ini")).unwrap_or_default();
+    Some(foot_alpha(&foot).unwrap_or(GLASS_ALPHA))
+}
+
+/// Omarchy's glass alpha for terminals.
+const GLASS_ALPHA: f64 = 0.65;
+
+/// The `alpha=` line of foot.ini, if any.
+fn foot_alpha(ini: &str) -> Option<f64> {
+    ini.lines()
+        .filter_map(|l| l.trim().strip_prefix("alpha"))
+        .filter_map(|rest| rest.trim_start().strip_prefix('='))
+        .find_map(|v| v.trim().parse::<f64>().ok())
+        .filter(|a| (0.0..=1.0).contains(a))
+}
+
 impl Theme {
     /// The live Omarchy theme.
     pub fn load() -> Theme {
@@ -164,17 +190,20 @@ impl Theme {
             &read_table(&paths::omarchy_user_shell_toml()),
             font_family(),
             hyprland_rounding(),
+            glass_alpha(&theme_dir),
         )
     }
 
     /// A theme from already-read sources: the theme's colors.toml and
-    /// shell.toml, the user's shell.toml, the font and Hyprland's rounding.
+    /// shell.toml, the user's shell.toml, the font, Hyprland's rounding,
+    /// and the terminals' background alpha while windows are Glassy.
     pub fn from_parts(
         colors: &Table,
         shell: &Table,
         user_shell: &Table,
         font_family: String,
         radius: f64,
+        glass: Option<f64>,
     ) -> Theme {
         let color = |key: &str| {
             colors
@@ -247,9 +276,11 @@ impl Theme {
             .map(|s| resolve(s, foreground))
             .unwrap_or(foreground);
 
-        // [pharos] background-alpha: the user-wide file wins over the theme.
+        // [pharos] background-alpha: the user-wide file wins over the theme,
+        // and either wins over Glassy windows.
         let window_alpha = num(get(user_shell, "pharos", "background-alpha"))
             .or_else(|| num(get(shell, "pharos", "background-alpha")))
+            .or(glass)
             .unwrap_or(1.0)
             .clamp(0.0, 1.0);
 
@@ -300,6 +331,9 @@ impl Theme {
 
     pub fn css(&self) -> String {
         let bg = self.background.alpha(self.window_alpha).css();
+        // A see-through window asks Hyprland to blur what's behind it, like
+        // the terminals do in Glassy mode; its blur settings decide the look.
+        let backdrop = if self.window_alpha < 1.0 { "blur(20px)" } else { "none" };
         let fg = self.foreground.css();
         let muted = self.muted.css();
         let faint = self.foreground.alpha(0.35).css();
@@ -338,6 +372,7 @@ impl Theme {
 window.pharos,
 window.pharos.background {{
   background-color: {bg};
+  backdrop-filter: {backdrop};
   color: {fg};
   font-family: "{family}", monospace;
   font-size: {body};
@@ -658,6 +693,7 @@ mod tests {
             &table(user),
             "JetBrainsMono Nerd Font".into(),
             radius,
+            None,
         )
     }
 
@@ -739,6 +775,34 @@ mod tests {
     }
 
     #[test]
+    fn glassy_windows_match_the_terminal() {
+        let glassy = |user: &str| {
+            Theme::from_parts(
+                &table(TOKYO_COLORS),
+                &Table::new(),
+                &table(user),
+                "monospace".into(),
+                0.0,
+                Some(0.65),
+            )
+            .css()
+        };
+        assert!(glassy("").contains("background-color: rgba(26, 27, 38, 0.650)"));
+        // A background-alpha the user set still wins.
+        assert!(
+            glassy("[pharos]\nbackground-alpha = 0.9\n")
+                .contains("background-color: rgba(26, 27, 38, 0.900)")
+        );
+        assert_eq!(
+            foot_alpha("[colors-dark]\n# omarchy-glass begin\nalpha=0.65\nblur=yes\n"),
+            Some(0.65)
+        );
+        assert_eq!(foot_alpha("alpha = 0.8"), Some(0.8));
+        assert_eq!(foot_alpha("alpha-mode=default\nforeground=fff"), None);
+        assert_eq!(foot_alpha("alpha=7"), None);
+    }
+
+    #[test]
     fn survives_an_empty_theme() {
         let t = Theme::from_parts(
             &Table::new(),
@@ -746,6 +810,7 @@ mod tests {
             &Table::new(),
             "monospace".into(),
             0.0,
+            None,
         );
         let css = t.css();
         assert_eq!(

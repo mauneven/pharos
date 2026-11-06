@@ -9,6 +9,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -136,7 +137,8 @@ pub fn run(open: bool) -> ExitCode {
         d.publish();
     }
 
-    if window_running() {
+    // Close the window this process opened, and nobody else's.
+    if OPEN_WINDOWS.load(Ordering::SeqCst) > 0 {
         window(&["--quit"]);
     }
     let _ = std::fs::remove_file(ipc::socket_path());
@@ -231,6 +233,9 @@ fn window_exe() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("pharos-window"))
 }
 
+/// `pharos-window` processes this process started that are still running.
+static OPEN_WINDOWS: AtomicUsize = AtomicUsize::new(0);
+
 /// Starts `pharos-window` with `args`. GTK hands them to the window that's
 /// already open, if there is one.
 fn window(args: &[&str]) {
@@ -238,20 +243,14 @@ fn window(args: &[&str]) {
     cmd.args(args).stdin(Stdio::null());
     match cmd.spawn() {
         Ok(mut child) => {
-            std::thread::spawn(move || child.wait());
+            OPEN_WINDOWS.fetch_add(1, Ordering::SeqCst);
+            std::thread::spawn(move || {
+                let _ = child.wait();
+                OPEN_WINDOWS.fetch_sub(1, Ordering::SeqCst);
+            });
         }
         Err(err) => eprintln!("pharos: could not open the window: {err}"),
     }
-}
-
-/// Whether a `pharos-window` is open, so Quit can close it.
-fn window_running() -> bool {
-    let Ok(dir) = std::fs::read_dir("/proc") else {
-        return false;
-    };
-    dir.flatten().any(|e| {
-        std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "pharos-window")
-    })
 }
 
 /// glibc gives each thread its own malloc arena; this process allocates

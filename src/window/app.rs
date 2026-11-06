@@ -226,6 +226,8 @@ impl Pharos {
         let dirs = [
             paths::omarchy_current(),
             paths::omarchy_current().join("theme"),
+            // Omarchy's toggles, Glassy windows among them.
+            paths::state_home().join("omarchy/toggles/hypr"),
         ];
         let files = [
             paths::omarchy_user_shell_toml(),

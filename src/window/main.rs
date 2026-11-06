@@ -34,31 +34,34 @@ fn main() -> glib::ExitCode {
     let pharos: Rc<RefCell<Option<Rc<app::Pharos>>>> = Rc::default();
 
     let slot = pharos.clone();
-    app.connect_startup(move |app| {
-        let cfg = match config::Config::load() {
-            config::Loaded::FirstRun(cfg) | config::Loaded::Existing(cfg) => cfg,
-        };
-        *slot.borrow_mut() = Some(app::Pharos::new(app, cfg));
-    });
-
-    let slot = pharos.clone();
     app.connect_command_line(move |app, cmd| {
-        let Some(p) = slot.borrow().clone() else {
-            return glib::ExitCode::FAILURE;
-        };
         let args: Vec<String> = cmd
             .arguments()
             .into_iter()
             .skip(1)
             .map(|a| a.to_string_lossy().into_owned())
             .collect();
+        // Quit only closes a window that's open: it never builds one, and
+        // never starts the background process.
+        if args.first().map(String::as_str) == Some("--quit") {
+            if let Some(p) = slot.borrow().as_ref() {
+                p.flush();
+            }
+            app.quit();
+            return glib::ExitCode::SUCCESS;
+        }
+        let p = slot
+            .borrow_mut()
+            .get_or_insert_with(|| {
+                let cfg = match config::Config::load() {
+                    config::Loaded::FirstRun(cfg) | config::Loaded::Existing(cfg) => cfg,
+                };
+                app::Pharos::new(app, cfg)
+            })
+            .clone();
         match args.first().map(String::as_str) {
             None => p.present(),
             Some("--toggle") => p.toggle_window(),
-            Some("--quit") => {
-                p.flush();
-                app.quit();
-            }
             Some(other) => {
                 eprintln!("pharos-window: unknown option {other}");
                 return glib::ExitCode::FAILURE;

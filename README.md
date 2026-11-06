@@ -76,10 +76,11 @@ while it's open.
 | State                        | RAM (PSS) |
 | ---------------------------- | --------- |
 | In the background            | ~3 MB     |
-| Window open                  | ~18 MB    |
+| Window open                  | ~18–25 MB |
 
-Measured on Omarchy with `/proc/<pid>/smaps_rollup`. A few seconds after you
-stop using the window, it lets go of the GTK code it only needed to start up.
+Measured on Omarchy with `/proc/<pid>/smaps_rollup`. A bigger window, or the
+Glassy look, takes a few MB more. A few seconds after you stop using the
+window, it lets go of the GTK code it only needed to start up.
 Closing the window gives all of its memory back right away.
 
 ## Fits in Omarchy
@@ -89,7 +90,8 @@ Closing the window gives all of its memory back right away.
 - **Language.** All 50 Omarchy languages, following Omarchy's language setting.
   Built-in reminders switch language with it until you rename them.
 - **Window.** Tiles into the free space like a terminal. Follows Omarchy's
-  window transparency (opaque, see-through or glassy).
+  window transparency: with Glassy windows it gets the same see-through,
+  blurred background as the terminals.
 - **Notifications.** Sent with `omarchy notification send`, so they look like
   every other Omarchy notification.
 - **Sleep.** After the laptop sleeps, the clocks start over quietly instead of
